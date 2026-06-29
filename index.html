@@ -394,7 +394,9 @@
           <sc-if value="{{ rHasSel }}" hint-placeholder-val="{{ false }}">
             <div style="margin-top: 18px;">
               <div style="display: flex; align-items: center; gap: 18px; font-size: 10.5px; letter-spacing: 0.08em; color: #7a7060; margin-bottom: 16px;">
-                <button type="button" onClick="{{ locateInGraphR }}" title="Locate in graph" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-right: -4px; padding: 0; border: none; background: transparent; color: #d8a942; cursor: pointer; font-size: 16px; transition: color .15s, transform .15s;" style-hover="color: #ffe9a8; transform: scale(1.22);">⌖</button>
+                <button type="button" onClick="{{ navBackR }}" title="Back" style="{{ navBackStyleR }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">‹</button>
+                <button type="button" onClick="{{ navForwardR }}" title="Forward" style="{{ navFwdStyleR }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">›</button>
+                <button type="button" onClick="{{ locateInGraphR }}" title="Locate in graph" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-left: -10px; margin-right: -4px; padding: 0; border: none; background: transparent; color: #d8a942; cursor: pointer; font-size: 16px; transition: color .15s, transform .15s;" style-hover="color: #ffe9a8; transform: scale(1.22);">⌖</button>
                 <sc-if value="{{ rHasParent }}" hint-placeholder-val="{{ false }}">
                   <button type="button" onClick="{{ rParentClick }}" onContextMenu="{{ rParentContext }}" title="Open parent note" style="background: none; border: none; padding: 0; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #7a7060; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px;" style-hover="color: #ece1cf;">↑ parent</button>
                 </sc-if>
@@ -1354,6 +1356,24 @@ class Component extends DCLogic {
   navState() { return (this.navHistByKey || (this.navHistByKey = {}))[this.navTabKey()] || { hist: [], idx: -1 }; }
   navBack = () => { const s = this.navState(); if (s.idx > 0) { this._navJump = true; s.idx--; const id = s.hist[s.idx]; if (this.nodeById[id]) this.focusNodeGraph(id); this._navJump = false; } };
   navForward = () => { const s = this.navState(); if (s.idx < s.hist.length - 1) { this._navJump = true; s.idx++; const id = s.hist[s.idx]; if (this.nodeById[id]) this.focusNodeGraph(id); this._navJump = false; } };
+  // Right split pane: navigate + per-tab back/forward history (mirrors the left, but repoints
+  // the right pane instead of moving the graph).
+  navRight(id, isJump) {
+    if (!this.nodeById[id]) return;
+    this.ensureBody(id);
+    const key = this.state.selectedKeyR;
+    const tn = Object.assign({}, this.state.tabNode);
+    if (key) tn[key] = id;
+    if (!isJump && key) {
+      const hb = (this.navHistByKey || (this.navHistByKey = {}));
+      const s = hb[key] || (hb[key] = { hist: [], idx: -1 });
+      if (s.hist[s.idx] !== id) { s.hist = s.hist.slice(0, s.idx + 1); s.hist.push(id); s.idx = s.hist.length - 1; }
+    }
+    this.setState({ tabNode: tn, selectedIdR: id });
+  }
+  navStateR() { return (this.navHistByKey || (this.navHistByKey = {}))[this.state.selectedKeyR] || { hist: [], idx: -1 }; }
+  navBackR = () => { const s = this.navStateR(); if (s.idx > 0) { s.idx--; this.navRight(s.hist[s.idx], true); } };
+  navForwardR = () => { const s = this.navStateR(); if (s.idx < s.hist.length - 1) { s.idx++; this.navRight(s.hist[s.idx], true); } };
   selectNode(id) {
     const n = this.nodeById[id]; if (!n) return;
     const hs = new Set();
@@ -1408,6 +1428,9 @@ class Component extends DCLogic {
     if (this._suppressUrl) return;
     const n = this.nodeById ? this.nodeById[id] : null;
     const hash = (n && id !== this.rootId) ? ('#node=' + encodeURIComponent(n.title)) : '';
+    // Reflect the anchored node in the browser tab title (resets to the base title at root).
+    if (this._baseTitle == null) this._baseTitle = document.title || '/var/log';
+    document.title = (n && id !== this.rootId) ? (n.name + ' · ' + this._baseTitle) : this._baseTitle;
     const url = window.location.pathname + window.location.search + hash;
     if (this._lastUrl === url) return;
     const isFirst = this._lastUrl == null;
@@ -1654,11 +1677,12 @@ class Component extends DCLogic {
   // Driven by rAF (not CSS transition) so the graph's render loop can't freeze it.
   startTabMarquee = (tabEl) => {
     if (!tabEl) return;
+    if (tabEl._marqueeRAF) return;     // already marqueeing — don't restart (would reset to start)
     const lab = tabEl.querySelector('[data-tablabel]');
     if (!lab) return;
     const max = lab.scrollWidth - lab.clientWidth;
     if (max <= 1) return;
-    this.stopTabMarquee(tabEl);
+    lab.style.textOverflow = 'clip';   // ellipsis would stay pinned at the edge and hide the end
     const dur = (max / 45) * 1000, pause = 650;
     let start = null;
     const step = (ts) => {
@@ -1675,7 +1699,8 @@ class Component extends DCLogic {
     tabEl._marqueeRAF = requestAnimationFrame(step);
   };
   stopTabMarquee = (tabEl) => {
-    if (tabEl && tabEl._marqueeRAF) { cancelAnimationFrame(tabEl._marqueeRAF); tabEl._marqueeRAF = null; const lab = tabEl.querySelector('[data-tablabel]'); if (lab) lab.scrollLeft = 0; }
+    if (tabEl && tabEl._marqueeRAF) { cancelAnimationFrame(tabEl._marqueeRAF); tabEl._marqueeRAF = null; }
+    if (tabEl) { const lab = tabEl.querySelector('[data-tablabel]'); if (lab) { lab.scrollLeft = 0; lab.style.textOverflow = 'ellipsis'; } }
   };
   startTabDrag = (id, side) => (e) => {
     if (e.button !== 0) return;                                          // ignore right/middle click
@@ -2923,7 +2948,7 @@ class Component extends DCLogic {
         mdNode: body, locate: () => nav(node.id),
       };
     };
-    const navR = (id) => { if (!this.nodeById[id]) return; this.ensureBody(id); const tn = Object.assign({}, this.state.tabNode); if (this.state.selectedKeyR) tn[this.state.selectedKeyR] = id; this.setState({ tabNode: tn, selectedIdR: id }); };
+    const navR = (id) => this.navRight(id);
     const rNodeEarly = ((this.state.tabsR || []).length && this.state.selectedIdR && this.nodeById) ? this.nodeById[this.state.selectedIdR] : null;
     if (rNodeEarly) this.ensureBody(rNodeEarly.id);
     const rPane = buildPane(rNodeEarly, navR);
@@ -3225,6 +3250,9 @@ class Component extends DCLogic {
       closeSidebar: () => this.clearSelection(),
       locateInGraph: this.locateInGraph,
       navBack: this.navBack, navForward: this.navForward,
+      navBackR: this.navBackR, navForwardR: this.navForwardR,
+      navBackStyleR: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: '3px 5px', borderRadius: '7px', border: 'none', background: 'transparent', color: this.navStateR().idx > 0 ? '#8c8170' : '#433c30', cursor: this.navStateR().idx > 0 ? 'pointer' : 'default', fontSize: '20px', lineHeight: 1, transition: 'color .15s, background .15s, transform .15s' },
+      navFwdStyleR: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: '3px 5px', marginLeft: '-10px', borderRadius: '7px', border: 'none', background: 'transparent', color: (this.navStateR().idx < this.navStateR().hist.length - 1) ? '#8c8170' : '#433c30', cursor: (this.navStateR().idx < this.navStateR().hist.length - 1) ? 'pointer' : 'default', fontSize: '20px', lineHeight: 1, transition: 'color .15s, background .15s, transform .15s' },
       navBackStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: '3px 5px', borderRadius: '7px', border: 'none', background: 'transparent', color: this.navState().idx > 0 ? '#8c8170' : '#433c30', cursor: this.navState().idx > 0 ? 'pointer' : 'default', fontSize: '20px', lineHeight: 1, transition: 'color .15s, background .15s, transform .15s' },
       navFwdStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: '3px 5px', marginLeft: '-10px', borderRadius: '7px', border: 'none', background: 'transparent', color: (this.navState().idx < this.navState().hist.length - 1) ? '#8c8170' : '#433c30', cursor: (this.navState().idx < this.navState().hist.length - 1) ? 'pointer' : 'default', fontSize: '20px', lineHeight: 1, transition: 'color .15s, background .15s, transform .15s' },
       query: this.state.query,
