@@ -2563,23 +2563,60 @@ class Component extends DCLogic {
       return;
     }
     host.innerHTML = '';
-    const s = document.createElement('script');
-    s.src = 'https://giscus.app/client.js';
-    s.async = true; s.crossOrigin = 'anonymous';
-    s.setAttribute('data-repo', this.GISCUS.repo);
-    s.setAttribute('data-repo-id', this.GISCUS.repoId);
-    s.setAttribute('data-category', this.GISCUS.category || '');
-    s.setAttribute('data-category-id', this.GISCUS.categoryId);
-    s.setAttribute('data-mapping', 'specific');
-    s.setAttribute('data-term', term);
-    s.setAttribute('data-strict', '1');
-    s.setAttribute('data-reactions-enabled', '1');
-    s.setAttribute('data-emit-metadata', '0');
-    s.setAttribute('data-input-position', 'top');
-    s.setAttribute('data-theme', this.GISCUS.theme || 'transparent_dark');
-    s.setAttribute('data-lang', 'en');
-    s.setAttribute('data-loading', 'lazy');
-    host.appendChild(s);
+    if (hostId === 'kg-giscus') {
+      // Left pane: the official client.js loader (it manages exactly one giscus instance per page).
+      const s = document.createElement('script');
+      s.src = 'https://giscus.app/client.js';
+      s.async = true; s.crossOrigin = 'anonymous';
+      s.setAttribute('data-repo', this.GISCUS.repo);
+      s.setAttribute('data-repo-id', this.GISCUS.repoId);
+      s.setAttribute('data-category', this.GISCUS.category || '');
+      s.setAttribute('data-category-id', this.GISCUS.categoryId);
+      s.setAttribute('data-mapping', 'specific');
+      s.setAttribute('data-term', term);
+      s.setAttribute('data-strict', '1');
+      s.setAttribute('data-reactions-enabled', '1');
+      s.setAttribute('data-emit-metadata', '0');
+      s.setAttribute('data-input-position', 'top');
+      s.setAttribute('data-theme', this.GISCUS.theme || 'transparent_dark');
+      s.setAttribute('data-lang', 'en');
+      s.setAttribute('data-loading', 'lazy');
+      host.appendChild(s);
+      return;
+    }
+    // Additional panes (e.g. the right split): client.js only mounts once per page, so build the
+    // giscus iframe directly (same widget URL it produces) and let our global listener size it.
+    this._setupGiscusResize();
+    const G = this.GISCUS;
+    let session = '';
+    try { session = localStorage.getItem('giscus-session') || ''; } catch (e) {}
+    const p = new URLSearchParams({
+      origin: location.href, session: session, theme: G.theme || 'transparent_dark',
+      reactionsEnabled: '1', emitMetadata: '0', inputPosition: 'top',
+      repo: G.repo, repoId: G.repoId, category: G.category || '', categoryId: G.categoryId,
+      strict: '1', description: '', backLink: location.href, term: term,
+    });
+    const ifr = document.createElement('iframe');
+    ifr.className = 'giscus-frame';
+    ifr.title = 'Comments';
+    ifr.setAttribute('scrolling', 'no');
+    ifr.src = 'https://giscus.app/' + (G.lang || 'en') + '/widget?' + p.toString();
+    ifr.style.cssText = 'width:100%;border:none;color-scheme:light dark;';
+    host.appendChild(ifr);
+  }
+  // Global giscus message listener: giscus posts {giscus:{resize:{height}}} from its iframe; resize
+  // whichever frame sent it. client.js installs this for the left pane; we install it for the others.
+  _setupGiscusResize() {
+    if (this._giscusResizeBound) return;
+    this._giscusResizeBound = true;
+    window.addEventListener('message', (e) => {
+      if (e.origin !== 'https://giscus.app') return;
+      const d = e.data;
+      if (!d || !d.giscus || !d.giscus.resize || typeof d.giscus.resize.height !== 'number') return;
+      document.querySelectorAll('iframe.giscus-frame').forEach((f) => {
+        if (f.contentWindow === e.source) f.style.height = d.giscus.resize.height + 'px';
+      });
+    });
   }
   sidebarScrollEl() { return document.getElementById('kg-sidebar-scroll'); }
   onSidebarScroll = () => {
