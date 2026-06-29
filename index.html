@@ -154,7 +154,7 @@
 
   <div style="position: absolute; top: {{ floatTop }}; right: {{ floatRight }}; z-index: 39; display: {{ floatDisplay }}; align-items: center; gap: 10px;">
     <span style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8c8170; white-space: nowrap;">{{ statusShown }}<span onClick="{{ showAll }}" title="Show all notes" style="cursor: pointer; color: #b78f3a; border-bottom: 1px dotted #6e5a2e; transition: color .15s;" style-hover="color: #f4cf6a; border-bottom-color: #f4cf6a;">{{ showAllLabel }}</span></span>
-      <div style="position: relative; flex-shrink: 0;">
+      <div data-controlsmenu="1" style="position: relative; flex-shrink: 0;">
         <button type="button" onClick="{{ toggleMenu }}" title="Controls" style="{{ gearBtnStyle }}" style-hover="color: #f4cf6a; transform: scale(1.18);"><span style="font-size: 17px; line-height: 1; display: block; transform: translateY(-1px);">⚙</span></button>
         <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
           <div style="position: absolute; top: calc(100% + 8px); right: 0; min-width: 250px; background: #16120c; border: 1px solid #2a2218; border-radius: 8px; padding: 6px; box-shadow: 0 22px 46px -18px rgba(0,0,0,0.78); z-index: 60; display: flex; flex-direction: column; gap: 2px;">
@@ -201,10 +201,6 @@
         </sc-if>
       </div>
   </div>
-
-  <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeMenu }}" style="position: fixed; inset: 0; z-index: 35;"></div>
-  </sc-if>
 
   <sc-if value="{{ eggMarcus }}" hint-placeholder-val="{{ false }}">
     <div style="position: fixed; inset: 0; z-index: 92; pointer-events: none; overflow: hidden;">
@@ -327,9 +323,9 @@
       <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
         <div style="margin-top: 18px;">
           <div style="display: flex; align-items: center; gap: 18px; font-size: 10.5px; letter-spacing: 0.08em; color: #7a7060; margin-bottom: 16px;">
-            <button type="button" onClick="{{ navBack }}" title="Back" style="{{ navBackStyle }}" style-hover="color: #f4cf6a; transform: scale(1.2);">‹</button>
-            <button type="button" onClick="{{ navForward }}" title="Forward" style="{{ navFwdStyle }}" style-hover="color: #f4cf6a; transform: scale(1.2);">›</button>
-            <button type="button" onClick="{{ locateInGraph }}" title="Locate in graph" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-right: -4px; padding: 0; border: none; background: transparent; color: #d8a942; cursor: pointer; font-size: 16px; transition: color .15s, transform .15s;" style-hover="color: #ffe9a8; transform: scale(1.22);">⌖</button>
+            <button type="button" onClick="{{ navBack }}" title="Back" style="{{ navBackStyle }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">‹</button>
+            <button type="button" onClick="{{ navForward }}" title="Forward" style="{{ navFwdStyle }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">›</button>
+            <button type="button" onClick="{{ locateInGraph }}" title="Locate in graph" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-left: -10px; margin-right: -4px; padding: 0; border: none; background: transparent; color: #d8a942; cursor: pointer; font-size: 16px; transition: color .15s, transform .15s;" style-hover="color: #ffe9a8; transform: scale(1.22);">⌖</button>
             <sc-if value="{{ hasParent }}" hint-placeholder-val="{{ false }}">
               <button type="button" onClick="{{ parentClick }}" onContextMenu="{{ parentContext }}" onMouseEnter="{{ parentHover }}" onMouseLeave="{{ parentLeave }}" title="Anchor to parent note" style="background: none; border: none; padding: 0; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #7a7060; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px;" style-hover="color: #ece1cf;">↑ parent</button>
             </sc-if>
@@ -365,10 +361,7 @@
             </div>
           </div>
 
-          <div style="display: block; margin-bottom: 14px;">
-            <sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="3">
-              <span style="{{ c.leadStyle }}">{{ c.lead }}</span><button type="button" onClick="{{ c.onClick }}" onContextMenu="{{ c.onContext }}" onMouseEnter="{{ c.onHover }}" onMouseLeave="{{ c.onLeave }}" style="{{ c.style }}" style-hover="color: #d8a942; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;">{{ c.name }}</button></sc-for>
-          </div>
+          <div style="display: block; margin-bottom: 14px; font-size: 11px; line-height: 1.7;"><sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="3"><span style="{{ c.leadStyle }}">{{ c.lead }}</span><span role="link" tabindex="0" onClick="{{ c.onClick }}" onContextMenu="{{ c.onContext }}" onMouseEnter="{{ c.onHover }}" onMouseLeave="{{ c.onLeave }}" style="{{ c.style }}" style-hover="color: #d8a942; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;">{{ c.name }}</span></sc-for></div>
 
           <h2 style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 500; color: #ece1cf; font-size: 29px; line-height: 1.08; letter-spacing: -0.015em; text-wrap: pretty;">{{ selName }}</h2>
 
@@ -436,10 +429,7 @@
                   </sc-if>
                 </div>
               </div>
-              <div style="display: block; margin-bottom: 14px;">
-                <sc-for list="{{ rCrumbs }}" as="c" hint-placeholder-count="3">
-                  <span style="{{ c.leadStyle }}">{{ c.lead }}</span><button type="button" onClick="{{ c.onClick }}" onContextMenu="{{ c.onContext }}" style="{{ c.style }}" style-hover="color: #d8a942; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;">{{ c.name }}</button></sc-for>
-              </div>
+              <div style="display: block; margin-bottom: 14px; font-size: 11px; line-height: 1.7;"><sc-for list="{{ rCrumbs }}" as="c" hint-placeholder-count="3"><span style="{{ c.leadStyle }}">{{ c.lead }}</span><span role="link" tabindex="0" onClick="{{ c.onClick }}" onContextMenu="{{ c.onContext }}" style="{{ c.style }}" style-hover="color: #d8a942; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;">{{ c.name }}</span></sc-for></div>
               <h2 style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 500; color: #ece1cf; font-size: 29px; line-height: 1.08; letter-spacing: -0.015em; text-wrap: pretty;">{{ rSelName }}</h2>
               <div style="margin-top: 11px; font-size: 10.5px; letter-spacing: 0.03em; color: #6c6354;">{{ rDateLine }}</div>
               <hr style="border: none; border-top: 1px solid #221c14; margin: 20px 0;">
@@ -2586,6 +2576,7 @@ class Component extends DCLogic {
     const el = e.target;
     if (this.state.sideMenu && !(el && el.closest && el.closest('[data-sidemenu]'))) this.setState({ sideMenu: false });
     if (this.state.recentOpen && !(el && el.closest && el.closest('[data-recent]'))) this.setState({ recentOpen: false });
+    if (this.state.menuOpen && !(el && el.closest && el.closest('[data-controlsmenu]'))) this.setState({ menuOpen: false });
     if (this.state.tabMenu && !(el && el.closest && el.closest('[data-tabmenu]'))) this.setState({ tabMenu: null });
     if (this.state.linkMenu && !(el && el.closest && el.closest('[data-linkmenu]'))) this.setState({ linkMenu: null });
     // Click anywhere outside the open node context menu closes it (right-click that opens a
@@ -2886,7 +2877,7 @@ class Component extends DCLogic {
         onHover: () => { this.hoverId = nn.id; },
         onLeave: () => { this.hoverId = null; },
         sep: i < tail.length - 1 ? ' / ' : '',
-        lead: i > 0 ? ' /\u00a0' : '', leadStyle: { color: '#433c30', fontSize: '11px', whiteSpace: 'pre-wrap' },
+        lead: i > 0 ? ' /\u00a0' : '', leadStyle: { color: '#433c30', fontSize: '11px', letterSpacing: '0.05em', whiteSpace: 'pre-wrap' },
         sepStyle: { color: '#433c30', fontSize: '11px', whiteSpace: 'pre' },
         style: { display: 'inline', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.05em', color: i === tail.length - 1 ? '#7a7060' : '#d8a942', transition: 'color .2s', whiteSpace: 'normal', textAlign: 'left', wordBreak: 'break-word' },
       }));
@@ -2912,7 +2903,7 @@ class Component extends DCLogic {
       while (c) { chain.unshift(c); if (c.id === this.actingRoot) break; c = c.parent ? this.nodeById[c.parent] : null; }
       const crumbsR = chain.map((nn, i) => ({
         name: nn.name, onClick: () => nav(nn.id), onContext: this.openLinkMenu(nn.id), onHover: () => {}, onLeave: () => {},
-        sep: i < chain.length - 1 ? ' / ' : '', lead: i > 0 ? ' /\u00a0' : '', leadStyle: { color: '#433c30', fontSize: '11px', whiteSpace: 'pre-wrap' }, sepStyle: { color: '#433c30', fontSize: '11px', whiteSpace: 'pre' },
+        sep: i < chain.length - 1 ? ' / ' : '', lead: i > 0 ? ' /\u00a0' : '', leadStyle: { color: '#433c30', fontSize: '11px', letterSpacing: '0.05em', whiteSpace: 'pre-wrap' }, sepStyle: { color: '#433c30', fontSize: '11px', whiteSpace: 'pre' },
         style: { display: 'inline', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.05em', color: i === chain.length - 1 ? '#7a7060' : '#d8a942', transition: 'color .2s', whiteSpace: 'normal', textAlign: 'left', wordBreak: 'break-word' },
       }));
       const pNode = (node.parent != null && node.id !== this.actingRoot) ? this.nodeById[node.parent] : null;
@@ -3234,8 +3225,8 @@ class Component extends DCLogic {
       closeSidebar: () => this.clearSelection(),
       locateInGraph: this.locateInGraph,
       navBack: this.navBack, navForward: this.navForward,
-      navBackStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: 0, border: 'none', background: 'transparent', color: this.navState().idx > 0 ? '#8c8170' : '#433c30', cursor: this.navState().idx > 0 ? 'pointer' : 'default', fontSize: '14px', transition: 'color .15s, transform .15s' },
-      navFwdStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: 0, border: 'none', background: 'transparent', color: (this.navState().idx < this.navState().hist.length - 1) ? '#8c8170' : '#433c30', cursor: (this.navState().idx < this.navState().hist.length - 1) ? 'pointer' : 'default', fontSize: '14px', transition: 'color .15s, transform .15s' },
+      navBackStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: '3px 5px', borderRadius: '7px', border: 'none', background: 'transparent', color: this.navState().idx > 0 ? '#8c8170' : '#433c30', cursor: this.navState().idx > 0 ? 'pointer' : 'default', fontSize: '20px', lineHeight: 1, transition: 'color .15s, background .15s, transform .15s' },
+      navFwdStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', padding: '3px 5px', marginLeft: '-10px', borderRadius: '7px', border: 'none', background: 'transparent', color: (this.navState().idx < this.navState().hist.length - 1) ? '#8c8170' : '#433c30', cursor: (this.navState().idx < this.navState().hist.length - 1) ? 'pointer' : 'default', fontSize: '20px', lineHeight: 1, transition: 'color .15s, background .15s, transform .15s' },
       query: this.state.query,
       onSearchInput: this.onSearchInput,
       recentOpen: !!this.state.recentOpen,
