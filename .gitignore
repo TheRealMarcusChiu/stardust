@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Environment
+.env
+.env.local
+
+# Build / temp output
+dist/
+build/
+.cache/
+tmp/
+*.tmp
+
+# Project working files
+uploads/
+scraps/
+screenshots/
+.thumbnail
+
+# Vault (source notes — built into garden-data.js / bodies)
+vault/
