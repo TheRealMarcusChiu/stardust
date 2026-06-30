@@ -1000,7 +1000,7 @@ class Component extends DCLogic {
       { kind: 'action', icon: '⤿', label: 'Fit view to screen', run: () => this.fitView() },
       { kind: 'action', icon: '⊞', label: 'Vault stats', run: () => this.openStats() },
       { kind: 'action', icon: '⤓', label: 'Export graph as PNG', run: () => this.exportGraphPNG() },
-      { kind: 'action', icon: '↺', label: 'Reset / collapse all', run: () => this.collapseAll() },
+      { kind: 'action', icon: '↺', label: 'Reset / collapse all', run: () => this.resetAll() },
       { kind: 'action', icon: '✦', label: 'Show all notes', run: () => this.expandAll() },
       { kind: 'action', icon: '⌨', label: 'Keyboard shortcuts', run: () => this.setState({ shortcutsOpen: true }) },
       { kind: 'action', icon: this.dockIconEl('left'), label: 'Dock panel left', run: () => this.setDock('left') },
@@ -3314,7 +3314,19 @@ class Component extends DCLogic {
   closeMenu = () => this.setState({ menuOpen: false });
   menuFit = () => { this.fitView(); this.setState({ menuOpen: false }); };
   menuShowAll = () => { this.expandAll(); this.setState({ menuOpen: false }); };
-  menuReset = () => { this.collapseAll(); this.setState({ menuOpen: false }); };
+  menuReset = () => { this.setState({ menuOpen: false, bgMenu: null }); this.resetAll(); };
+  // Full reset — wipe the app's own session/local prefs (keeping favorites) and reload to the
+  // pristine first-landing state.
+  resetAll = () => {
+    try {
+      [localStorage, sessionStorage].forEach(function(store){
+        var keys = [];
+        for (var i = 0; i < store.length; i++) { var k = store.key(i); if (k && k.indexOf('kg-') === 0 && k !== 'kg-pins') keys.push(k); }
+        keys.forEach(function(k){ store.removeItem(k); });
+      });
+    } catch (e) {}
+    try { window.location.replace(window.location.pathname + window.location.search); } catch (e) { try { window.location.reload(); } catch (e2) {} }
+  };
   menuKeep = () => { clearTimeout(this._menuHideT); };
   menuLeave = () => { this.setState({ menuNodeId: null }); };
   menuToggle = (id) => {
