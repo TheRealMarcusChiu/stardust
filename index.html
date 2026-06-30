@@ -263,7 +263,7 @@
     </div>
   </sc-if>
 
-  <div ref="{{ setLegendEl }}" style="position: absolute; left: 22px; bottom: 20px; z-index: 15; pointer-events: none; display: flex; flex-direction: column; gap: 9px;">
+  <div ref="{{ setLegendEl }}" style="position: absolute; left: 16px; bottom: 16px; z-index: 15; pointer-events: none; display: flex; flex-direction: column; gap: 9px;">
     <div style="display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase; color: #6c6354; pointer-events: auto; white-space: nowrap;">
       <span>powered by</span>
       <a href="https://github.com/TheRealMarcusChiu/stardust.git" target="_blank" rel="noopener" style="color: #b78f3a; text-decoration: none; border-bottom: 1px dotted #6e5a2e; transition: color .15s, border-color .15s;" style-hover="color: #f4cf6a; border-bottom-color: #f4cf6a;">stardust</a>
@@ -4336,7 +4336,7 @@ class Component extends DCLogic {
       hintDisplay: compact ? 'none' : 'block',
       setLegendEl: this.setLegendEl,
       legendTop: ((this.state.headerH || 64) + 16) + 'px',
-      legendMaxH: (function(self){ var legTop = (self.state.headerH || 64) + 16; var wh = self.state.winH || (typeof window !== 'undefined' ? window.innerHeight : 800); var areaBottom = wh; if ((self.state.dock || 'right') === 'bottom' && self.selectedId != null && !self.state.fullPage) areaBottom = wh - Math.round(self.state.sidebarH || 360); return Math.max(90, areaBottom - legTop - 64) + 'px'; })(this),
+      legendMaxH: (function(self){ var legTop = (self.state.headerH || 64) + 16; var wh = self.state.winH || (typeof window !== 'undefined' ? window.innerHeight : 800); var areaBottom = wh; if ((self.state.dock || 'right') === 'bottom' && self.selectedId != null && !self.state.fullPage) areaBottom = wh - Math.round(self.state.sidebarH || 360); return Math.max(90, areaBottom - legTop - 78) + 'px'; })(this),
       legendLeft: (this.state.dock === 'left' && this.selectedId != null && !this.state.fullPage) ? ((this.state.sidebarW || 452) + 9) + 'px' : '16px',
       menuToggleLegend: () => { const willShow = !!this.state.legendHidden; const patch = { legendHidden: !this.state.legendHidden, menuOpen: false }; if (willShow) { patch.nodeColorMode = 'category'; try { sessionStorage.setItem('kg-node-color', 'category'); } catch (e) {} } this.setState(patch); this._kickGraph(); },
       legendToggleLabel: this.state.legendHidden ? '▤ Show legend' : '▤ Hide legend',
