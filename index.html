@@ -1764,8 +1764,9 @@ class Component extends DCLogic {
     if (tabEl._marqueeRAF) return;     // already marqueeing — don't restart (would reset to start)
     const lab = tabEl.querySelector('[data-tablabel]');
     if (!lab) return;
+    lab.style.paddingRight = '22px';   // reserve room so the scrolled tail clears the close button overlay
     const max = lab.scrollWidth - lab.clientWidth;
-    if (max <= 1) return;
+    if (max <= 1) { lab.style.paddingRight = ''; return; }
     lab.style.textOverflow = 'clip';   // ellipsis would stay pinned at the edge and hide the end
     const dur = (max / 45) * 1000, pause = 650;
     let start = null;
@@ -1784,7 +1785,7 @@ class Component extends DCLogic {
   };
   stopTabMarquee = (tabEl) => {
     if (tabEl && tabEl._marqueeRAF) { cancelAnimationFrame(tabEl._marqueeRAF); tabEl._marqueeRAF = null; }
-    if (tabEl) { const lab = tabEl.querySelector('[data-tablabel]'); if (lab) { lab.scrollLeft = 0; lab.style.textOverflow = 'ellipsis'; } }
+    if (tabEl) { const lab = tabEl.querySelector('[data-tablabel]'); if (lab) { lab.scrollLeft = 0; lab.style.textOverflow = 'ellipsis'; lab.style.paddingRight = ''; } }
   };
   startTabDrag = (id, side) => (e) => {
     if (e.button !== 0) return;                                          // ignore right/middle click
@@ -3086,6 +3087,9 @@ class Component extends DCLogic {
     let hits;
     try { hits = this._searchIndex.search(q, { boost: { title: 5, headings: 3, tags: 3, text: 1 }, prefix: true, fuzzy: 0.2, combineWith: 'AND' }); } catch (e) { return this.computeTitleResults(q); }
     if (!hits.length && q.length >= 2) { try { hits = this._searchIndex.search(q, { prefix: true, fuzzy: 0.3, combineWith: 'OR' }); } catch (e) {} }
+    // Title matches always rank above content-only matches (ties broken by relevance score).
+    const titleHit = (h) => { const m = h.match || {}; return Object.keys(m).some((t) => (m[t] || []).indexOf('title') >= 0); };
+    hits.sort((a, b) => (Number(titleHit(b)) - Number(titleHit(a))) || (b.score - a.score));
     const ranked = hits.map((h) => this.nodeById[h.id]).filter((n) => n && n.id !== this.actingRoot && this.inActingSubtree(n)).slice(0, 14);
     this._results = ranked;
     this._lastHitTerms = {};
