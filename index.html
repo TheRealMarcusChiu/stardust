@@ -192,7 +192,7 @@
   </header>
 
   <div style="position: absolute; top: {{ floatTop }}; right: {{ floatRight }}; z-index: 61; display: {{ floatDisplay }}; align-items: center; gap: 10px;">
-    <span style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8c8170; white-space: nowrap;">{{ statusShown }}<span onClick="{{ showAll }}" title="Show all notes" style="cursor: pointer; color: #b78f3a; border-bottom: 1px dotted #6e5a2e; transition: color .15s;" style-hover="color: #f4cf6a; border-bottom-color: #f4cf6a;">{{ showAllLabel }}</span></span>
+    <span style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8c8170; white-space: nowrap;">{{ statusShown }}<span onClick="{{ showAll }}" title="Show all notes" style="cursor: pointer; color: #b78f3a; border-bottom: 1px dotted #6e5a2e; transition: color .15s;" style-hover="color: #f4cf6a; border-bottom-color: #f4cf6a;">{{ showAllLabel }}</span><span> · </span><span onClick="{{ menuStats }}" title="Vault stats" style="cursor: pointer; color: #b78f3a; border-bottom: 1px dotted #6e5a2e; transition: color .15s;" style-hover="color: #f4cf6a; border-bottom-color: #f4cf6a;">stats</span></span>
       <div data-controlsmenu="1" style="position: relative; flex-shrink: 0;">
         <button type="button" onClick="{{ toggleMenu }}" title="Controls" style="{{ gearBtnStyle }}" style-hover="color: #f4cf6a; transform: scale(1.18);"><span style="font-size: 17px; line-height: 1; display: block; transform: translateY(-1px);">⚙</span></button>
         <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
@@ -200,6 +200,8 @@
             <button type="button" onClick="{{ menuFit }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>⤢ Fit view</span></button>
             <button type="button" onClick="{{ menuReset }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>↺ Reset</span></button>
             <button type="button" onClick="{{ menuToggleMinimap }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>{{ minimapToggleLabel }}</span></button>
+            <button type="button" onClick="{{ menuToggleLegend }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>{{ legendToggleLabel }}</span></button>
+            <button type="button" onClick="{{ menuExportPng }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>⤓ Export graph as PNG</span></button>
             <div style="height: 1px; background: #2a2218; margin: 5px 4px;"></div>
             <button type="button" onClick="{{ toggleTree }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span style="display: inline-flex; align-items: center; gap: 6px;">— Tree edges<span onClick="{{ infoStop }}" onMouseEnter="{{ infoTreeOn }}" onMouseLeave="{{ infoOff }}" style="cursor: help; color: #6c6354; display: inline-flex; align-items: center; position: relative;" style-hover="color: #d8a942;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.4"></line><circle cx="8" cy="4.6" r="0.75" fill="currentColor" stroke="none"></circle></svg><sc-if value="{{ infoTreeShow }}" hint-placeholder-val="{{ false }}"><span style="{{ infoTipStyle }}">Solid lines that trace each note's parent–child place in the hierarchy — every note links down to those nested beneath it. The backbone tree of the garden.</span></sc-if></span></span><span style="{{ treeChkStyle }}">{{ treeChk }}</span></button>
             <button type="button" onClick="{{ toggleWiki }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span style="display: inline-flex; align-items: center; gap: 6px;">⋯ Wikilink edges<span onClick="{{ infoStop }}" onMouseEnter="{{ infoWikiOn }}" onMouseLeave="{{ infoOff }}" style="cursor: help; color: #6c6354; display: inline-flex; align-items: center; position: relative;" style-hover="color: #7fb0b8;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.4"></line><circle cx="8" cy="4.6" r="0.75" fill="currentColor" stroke="none"></circle></svg><sc-if value="{{ infoWikiShow }}" hint-placeholder-val="{{ false }}"><span style="{{ infoTipStyle }}">Dashed lines for [[wikilink]] references written inside notes — direct links between any two notes, independent of the tree, so related notes in different branches stay connected.</span></sc-if></span></span><span style="{{ wikiChkStyle }}">{{ wikiChk }}</span></button>
@@ -243,7 +245,15 @@
     </div>
   </sc-if>
 
-  <!-- legend -->
+  <!-- legend (top-left) -->
+  <sc-if value="{{ legendShow }}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 22px; top: {{ legendTop }}; z-index: 15; pointer-events: auto; display: flex; flex-direction: column; gap: 3px;">
+      <sc-for list="{{ legendGroups }}" as="g" hint-placeholder-count="3">
+        <button type="button" onClick="{{ g.onClick }}" title="{{ g.title }}" style="{{ g.style }}" style-hover="color: #ece1cf;"><span style="{{ g.dot }}"></span><span style="{{ g.labelStyle }}">{{ g.label }}</span></button>
+      </sc-for>
+    </div>
+  </sc-if>
+
   <div ref="{{ setLegendEl }}" style="position: absolute; left: 22px; bottom: 20px; z-index: 15; pointer-events: none; display: flex; flex-direction: column; gap: 9px;">
     <div style="display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase; color: #6c6354; pointer-events: auto; white-space: nowrap;">
       <span>powered by</span>
@@ -602,6 +612,43 @@
     </div>
   </sc-if>
 
+  <sc-if value="{{ statsOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeStats }}" style="position: fixed; inset: 0; z-index: 135; background: rgba(8,6,4,0.66); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace;">
+      <div onClick="{{ stopProp }}" style="width: min(580px, 94vw); max-height: 86vh; overflow-y: auto; background: #14100b; border: 1px solid #2a2218; border-radius: 12px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.85); padding: 20px 22px 22px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+          <span style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 500; font-size: 21px; color: #ece1cf;">Vault stats</span>
+          <button type="button" onClick="{{ closeStats }}" style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; border-radius: 7px; background: transparent; color: #8c8170; cursor: pointer; font-size: 13px;" style-hover="color: #f0b6a3; background: #2e1a16;">✕</button>
+        </div>
+        <div style="display: flex; gap: 9px; flex-wrap: wrap; margin-bottom: 18px;">
+          <div style="flex: 1 1 100px; background: #1b150d; border: 1px solid #2a2218; border-radius: 8px; padding: 10px 13px;"><div style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 22px; color: #f4cf6a;">{{ stats.total }}</div><div style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #8c8170; margin-top: 2px;">Notes</div></div>
+          <div style="flex: 1 1 100px; background: #1b150d; border: 1px solid #2a2218; border-radius: 8px; padding: 10px 13px;"><div style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 22px; color: #8fd0db;">{{ stats.wikiLinks }}</div><div style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #8c8170; margin-top: 2px;">Wikilinks</div></div>
+          <div style="flex: 1 1 100px; background: #1b150d; border: 1px solid #2a2218; border-radius: 8px; padding: 10px 13px;"><div style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 22px; color: #d8a942;">{{ stats.treeLinks }}</div><div style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #8c8170; margin-top: 2px;">Tree links</div></div>
+          <div style="flex: 1 1 100px; background: #1b150d; border: 1px solid #2a2218; border-radius: 8px; padding: 10px 13px;"><div style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 22px; color: #c97f63;">{{ stats.orphans }}</div><div style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #8c8170; margin-top: 2px;">Orphans</div></div>
+        </div>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <div style="flex: 1 1 220px; min-width: 0;">
+            <div style="font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #b78f3a; margin-bottom: 7px;">Most linked</div>
+            <sc-for list="{{ stats.hubs }}" as="h" hint-placeholder-count="3">
+              <button type="button" onClick="{{ h.onClick }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; background: transparent; border: none; border-radius: 6px; padding: 5px 7px; cursor: pointer;" style-hover="background: #2c2316;"><span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ece1cf; font-size: 11.5px;">{{ h.title }}</span><span style="flex: 0 0 auto; color: #8fd0db; font-size: 10px;">{{ h.count }}</span></button>
+            </sc-for>
+          </div>
+          <div style="flex: 1 1 220px; min-width: 0;">
+            <div style="font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #b78f3a; margin-bottom: 7px;">Most referenced</div>
+            <sc-for list="{{ stats.backs }}" as="h" hint-placeholder-count="3">
+              <button type="button" onClick="{{ h.onClick }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; background: transparent; border: none; border-radius: 6px; padding: 5px 7px; cursor: pointer;" style-hover="background: #2c2316;"><span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ece1cf; font-size: 11.5px;">{{ h.title }}</span><span style="flex: 0 0 auto; color: #b78f3a; font-size: 10px;">{{ h.count }}</span></button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #b78f3a; margin: 16px 0 8px;">Top tags</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <sc-for list="{{ stats.tags }}" as="t" hint-placeholder-count="4">
+            <span style="font-size: 10.5px; color: #cdbfa6; background: #1b150d; border: 1px solid #2a2218; border-radius: 20px; padding: 3px 10px;">{{ t.t }} · {{ t.c }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ shortcutsOpen }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closeShortcuts }}" style="position: fixed; inset: 0; z-index: 130; background: rgba(8,6,4,0.66); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace;">
       <div onClick="{{ stopProp }}" style="width: min(460px, 92vw); max-height: 84vh; overflow-y: auto; background: #14100b; border: 1px solid #2a2218; border-radius: 12px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.85); padding: 20px 22px 22px;">
@@ -647,7 +694,7 @@
   &quot;edgeFlow&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot; }
 }">
 class Component extends DCLogic {
-  state = { mode: '2d', selectedId: null, ready: false, anim: false, tick: 0, fullPage: false, query: '', searchFocus: false, searchIdx: 0, menuNodeId: null, linkMenu: null, tabs: [], tabsR: [], selectedIdR: null, selectedKey: null, selectedKeyR: null, tabNode: {}, tabMenu: null, barMenu: null, metaPopR: null, splitRatio: 0.5, splitPos: (function(){ try { var p = sessionStorage.getItem('kg-split-pos'); return ['right','left','up','down'].indexOf(p) >= 0 ? p : 'right'; } catch(e){ return 'right'; } })(), splitSubOpen: false, splitHover: false, hoverTab: null, closeHover: null, tabsCollapsedL: false, tabsCollapsedR: false, lockTabWL: 0, lockTabWR: 0, winW: (typeof window !== 'undefined' ? window.innerWidth : 1280), winH: (typeof window !== 'undefined' ? window.innerHeight : 800), searchExpanded: false, headerH: 64, sidebarW: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-w')); return (v && v >= 320) ? v : 452; } catch(e){ return 452; } })(), mdConfig: this.loadMdConfig(), mdConfigOpen: false, mdCfgExpanded: {}, showTree: true, showWiki: true, menuOpen: false, hoverId: null, dragging: false, dockPreview: null, undockLeft: null, undockTop: null, dock: (function(){ try { var d = sessionStorage.getItem('kg-dock'); return ['right','left','bottom','undock'].indexOf(d) >= 0 ? d : 'right'; } catch(e){ return 'right'; } })(), sidebarH: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-h')); return (v && v >= 200) ? v : Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.46); } catch(e){ return 360; } })(), bootMsg: 'fetching the garden \u2026', nodeSizeMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-node-size')); return (v>0)?v:1; } catch(e){ return 1; } })(), edgeWidthMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-edge-width')); return (v>0)?v:1; } catch(e){ return 1; } })(), nodeColorMode: (function(){ try { return sessionStorage.getItem('kg-node-color')||'recent'; } catch(e){ return 'recent'; } })(), treeEdgeColor: (function(){ try { return sessionStorage.getItem('kg-tree-color')||'#d8a942'; } catch(e){ return '#d8a942'; } })(), wikiEdgeColor: (function(){ try { return sessionStorage.getItem('kg-wiki-color')||'#8fd0db'; } catch(e){ return '#8fd0db'; } })() };
+  state = { mode: '2d', selectedId: null, ready: false, anim: false, tick: 0, fullPage: false, query: '', searchFocus: false, searchIdx: 0, menuNodeId: null, linkMenu: null, tabs: [], tabsR: [], selectedIdR: null, selectedKey: null, selectedKeyR: null, tabNode: {}, tabMenu: null, barMenu: null, metaPopR: null, splitRatio: 0.5, splitPos: (function(){ try { var p = sessionStorage.getItem('kg-split-pos'); return ['right','left','up','down'].indexOf(p) >= 0 ? p : 'right'; } catch(e){ return 'right'; } })(), splitSubOpen: false, legendHidden: true, splitHover: false, hoverTab: null, closeHover: null, tabsCollapsedL: false, tabsCollapsedR: false, lockTabWL: 0, lockTabWR: 0, winW: (typeof window !== 'undefined' ? window.innerWidth : 1280), winH: (typeof window !== 'undefined' ? window.innerHeight : 800), searchExpanded: false, headerH: 64, sidebarW: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-w')); return (v && v >= 320) ? v : 452; } catch(e){ return 452; } })(), mdConfig: this.loadMdConfig(), mdConfigOpen: false, mdCfgExpanded: {}, showTree: true, showWiki: true, menuOpen: false, hoverId: null, dragging: false, dockPreview: null, undockLeft: null, undockTop: null, dock: (function(){ try { var d = sessionStorage.getItem('kg-dock'); return ['right','left','bottom','undock'].indexOf(d) >= 0 ? d : 'right'; } catch(e){ return 'right'; } })(), sidebarH: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-h')); return (v && v >= 200) ? v : Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.46); } catch(e){ return 360; } })(), bootMsg: 'fetching the garden \u2026', nodeSizeMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-node-size')); return (v>0)?v:1; } catch(e){ return 1; } })(), edgeWidthMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-edge-width')); return (v>0)?v:1; } catch(e){ return 1; } })(), nodeColorMode: (function(){ try { return sessionStorage.getItem('kg-node-color')||'recent'; } catch(e){ return 'recent'; } })(), treeEdgeColor: (function(){ try { return sessionStorage.getItem('kg-tree-color')||'#d8a942'; } catch(e){ return '#d8a942'; } })(), wikiEdgeColor: (function(){ try { return sessionStorage.getItem('kg-wiki-color')||'#8fd0db'; } catch(e){ return '#8fd0db'; } })() };
 
   MD_CONFIG = [
     { key: 'math', label: 'LaTeX math ($…$)', ex: 'Mass–energy: $E = mc^2$' },
@@ -859,6 +906,7 @@ class Component extends DCLogic {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); this.setState((s) => ({ paletteOpen: !s.paletteOpen, paletteQuery: '', paletteIdx: 0 })); return; }
     if (e.key === 'Escape') {
+      if (this.state.statsOpen) { this.setState({ statsOpen: false }); return; }
       if (this.state.paletteOpen) { this.setState({ paletteOpen: false }); return; }
       if (this.state.shortcutsOpen) { this.setState({ shortcutsOpen: false }); return; }
     }
@@ -905,6 +953,8 @@ class Component extends DCLogic {
       { kind: 'action', icon: '—', label: 'Toggle tree edges', run: () => this.toggleTree() },
       { kind: 'action', icon: '⋯', label: 'Toggle wikilink edges', run: () => this.toggleWiki() },
       { kind: 'action', icon: '⤿', label: 'Fit view to screen', run: () => this.fitView() },
+      { kind: 'action', icon: '⊞', label: 'Vault stats', run: () => this.openStats() },
+      { kind: 'action', icon: '⤓', label: 'Export graph as PNG', run: () => this.exportGraphPNG() },
       { kind: 'action', icon: '↺', label: 'Reset / collapse all', run: () => this.collapseAll() },
       { kind: 'action', icon: '✦', label: 'Show all notes', run: () => this.expandAll() },
       { kind: 'action', icon: '⌨', label: 'Keyboard shortcuts', run: () => this.setState({ shortcutsOpen: true }) },
@@ -1453,6 +1503,7 @@ class Component extends DCLogic {
   isPathHot(l) { return this.pathLinkSet ? this.pathLinkSet.has(this.linkKey(l)) : false; }
   _hexA(hex, a) { hex = (hex || '').replace('#', ''); if (hex.length === 3) hex = hex.split('').map(function(c){ return c + c; }).join(''); var r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16); return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')'; }
   linkColorFn(l) {
+    if (this._filterActive()) { const s = (l.source && l.source.id != null) ? l.source.id : l.source, t = (l.target && l.target.id != null) ? l.target.id : l.target; if (this._dimAlphaId(s) < 1 || this._dimAlphaId(t) < 1) return 'rgba(120,108,86,0.06)'; }
     if (this.isPathHot(l)) return '#ffe08a';
     const hot = this.isHot(l);
     if (l.type === 'wiki') { const c = this.state.wikiEdgeColor || '#8fd0db'; return hot ? c : this._hexA(c, 0.20); }
@@ -1507,10 +1558,32 @@ class Component extends DCLogic {
       this.graph = G;
   }
 
+  // Active focus filter (search-as-you-type and/or legend group solo) → dim non-matching nodes.
+  _filterActive() { const q = (this.state.query || '').trim(); return q.length >= 2 || !!(this._focusGroups && this._focusGroups.size); }
+  _dimAlphaId(id) { const n = this.nodeById && this.nodeById[id]; return n ? this._dimAlpha(n) : 1; }
+  _dimAlpha(n) {
+    if (this.isAnchored(n.id)) return 1;
+    const q = (this.state.query || '').trim().toLowerCase();
+    const searchOn = q.length >= 2;
+    const fg = this._focusGroups, groupsOn = !!(fg && fg.size);
+    if (!searchOn && !groupsOn) return 1;
+    let lit = true;
+    if (searchOn) lit = lit && ((n.title || '').toLowerCase().indexOf(q) >= 0);
+    if (groupsOn) lit = lit && this._inAnyFocus(n);
+    return lit ? 1 : 0.12;
+  }
+  _inAnyFocus(n) {
+    const fg = this._focusGroups; if (!fg || !fg.size) return true;
+    let x = n, g = 0;
+    while (x && g < 80) { if (fg.has(x.id)) return true; if (x.id === this.actingRoot) break; x = x.parent ? this.nodeById[x.parent] : null; g++; }
+    return false;
+  }
+  subtreeCount(n) { let c = 0; const w = (x) => { c++; (x.children || []).forEach(w); }; if (n) (n.children || []).forEach(w); return c; }
   draw2d(n, ctx, scale) {
     const t = performance.now();
     if (this._egg && n.id === this.rootId) { this.drawBlackHole(n, ctx, scale); return; }
     if (this._egg) { ctx.beginPath(); ctx.arc(n.x, n.y, this.nodeRadius(n), 0, 2 * Math.PI); ctx.fillStyle = this.color(n); ctx.fill(); return; }
+    if (this._dimAlpha(n) < 1) { const rr = this.nodeRadius(n); ctx.globalAlpha = 0.14; ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 2 * Math.PI); ctx.fillStyle = this.color(n); ctx.fill(); ctx.globalAlpha = 1; return; }
     if ((this._visNodes || 0) > 1200) {
       const hov = n.id === this.hoverId;
       const fr = this.nodeRadius(n) * (hov ? 1.6 : 1);
@@ -3190,6 +3263,7 @@ class Component extends DCLogic {
   };
   menuMakeRoot = (id) => {
     const n = this.nodeById[id]; if (!n) return;
+    this._focusGroups = null;   // stale group-solo would blank the new subtree
     this.actingRoot = id;
     this.assignColors(id);
     this.collapsed = new Set();
@@ -3237,6 +3311,31 @@ class Component extends DCLogic {
   };
   // Toggle the minimap on/off (overrides the auto-show-for-large-vaults default).
   toggleMinimap = () => { this.setState({ bgMenu: null, minimapForce: this._miniVisible ? false : true }); };
+  // Legend group solo/filter: toggling a domain dims everything not in the focused set.
+  toggleGroup = (key) => { const fg = this._focusGroups || (this._focusGroups = new Set()); if (fg.has(key)) fg.delete(key); else fg.add(key); this.setState((s) => ({ tick: (s.tick || 0) + 1 })); };
+  // Export the current graph canvas as a PNG (with the theme background painted behind it).
+  exportGraphPNG = () => {
+    const cv = this.graphEl && this.graphEl.querySelector('canvas'); if (!cv) return;
+    const out = document.createElement('canvas'); out.width = cv.width; out.height = cv.height;
+    const c = out.getContext('2d');
+    c.fillStyle = document.body.classList.contains('kg-light') ? '#eef1f4' : '#0f0c09';
+    c.fillRect(0, 0, out.width, out.height); c.drawImage(cv, 0, 0);
+    try { out.toBlob((b) => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'knowledge-garden.png'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }, 'image/png'); } catch (e) {}
+  };
+  openStats = () => this.setState({ statsOpen: true, paletteOpen: false, menuOpen: false });
+  computeStats() {
+    const nodes = this.nodeById ? Object.values(this.nodeById) : [];
+    const inc = this.incoming || {};
+    let wikiLinks = 0, treeLinks = 0; const tagCount = {};
+    nodes.forEach((n) => { wikiLinks += (n.links || []).length; treeLinks += (n.children || []).length; (n.tags || []).forEach((t) => { tagCount[t] = (tagCount[t] || 0) + 1; }); });
+    const mk = (n, count) => ({ title: n.name || n.title, count: count, onClick: () => { this.setState({ statsOpen: false }); this.navigateTo(n.id); } });
+    const hubs = nodes.filter((n) => (n.links || []).length).sort((a, b) => (b.links || []).length - (a.links || []).length).slice(0, 6).map((n) => mk(n, (n.links || []).length));
+    const backs = nodes.filter((n) => (inc[n.id] || []).length).sort((a, b) => (inc[b.id] || []).length - (inc[a.id] || []).length).slice(0, 6).map((n) => mk(n, (inc[n.id] || []).length));
+    const orphansAll = nodes.filter((n) => n.id !== this.rootId && !(inc[n.id] || []).length && !(n.links || []).length);
+    const orphanList = orphansAll.slice(0, 6).map((n) => mk(n, 0));
+    const tags = Object.keys(tagCount).sort((a, b) => tagCount[b] - tagCount[a]).slice(0, 10).map((t) => ({ t: t, c: tagCount[t] }));
+    return { total: nodes.length, wikiLinks, treeLinks, orphans: orphansAll.length, hubs, backs, orphanList, tags };
+  }
   toggleTree = () => this.setState((s) => ({ showTree: !s.showTree }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });  toggleWiki = () => this.setState((s) => ({ showWiki: !s.showWiki }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });
   _kickGraph = () => { if (!this.graph) return; try { this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
   setNodeSize = (e) => { const v = parseFloat(e.target.value); this.setState({ nodeSizeMul: v }); try { sessionStorage.setItem('kg-node-size', v); } catch (_) {} this._kickGraph(); };
@@ -3998,7 +4097,24 @@ class Component extends DCLogic {
       floatRight: ((this.state.selectedId && !this.state.fullPage && dock === 'right') ? Math.min(this.state.sidebarW || 452, winW * 0.94) + 6 : 8) + 'px',
       floatTop: ((this.state.headerH || 64) + 5) + 'px',
       hintDisplay: compact ? 'none' : 'block',
-      setLegendEl: this.setLegendEl,      slashDisplay: (compact || this.state.searchFocus) ? 'none' : 'inline-block',
+      setLegendEl: this.setLegendEl,
+      legendTop: ((this.state.headerH || 64) + 14) + 'px',
+      menuToggleLegend: () => { const willShow = !!this.state.legendHidden; if (willShow) this._prevColorMode = this.state.nodeColorMode || 'recent'; const mode = willShow ? 'category' : (this._prevColorMode || 'recent'); this.setState({ legendHidden: !this.state.legendHidden, menuOpen: false, nodeColorMode: mode }); this._kickGraph(); },
+      legendToggleLabel: this.state.legendHidden ? '▤ Show legend' : '▤ Hide legend',
+      legendShow: (function(self){ const ar = self.nodeById ? self.nodeById[self.actingRoot] : null; return !!(ar && (ar.children || []).length > 1) && !self.state.fullPage && !self.state.legendHidden; })(this),
+      legendGroups: (function(self){
+        const fg = self._focusGroups, ar = self.nodeById ? self.nodeById[self.actingRoot] : null;
+        const kids = ar ? (ar.children || []).slice() : [];
+        kids.sort((a, b) => self.subtreeCount(b) - self.subtreeCount(a));
+        return kids.map((c) => { const on = !!(fg && fg.has(c.id)); const dim = !!(fg && fg.size && !on); const col = c.col || self.PAL[c.group] || '#d8a942'; return {
+          label: (c.name || c.title) + ' \u00b7 ' + (self.subtreeCount(c) + 1),
+          title: on ? 'Showing this branch \u2014 click to clear' : 'Solo this branch',
+          onClick: () => self.toggleGroup(c.id),
+          style: { display: 'flex', alignItems: 'center', gap: '7px', maxWidth: '230px', background: 'transparent', border: 'none', padding: '1px 0', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', letterSpacing: '0.04em', textAlign: 'left', color: dim ? '#5f574a' : (on ? '#ece1cf' : '#8c8170') },
+          dot: { width: '8px', height: '8px', borderRadius: '50%', flex: '0 0 auto', background: col, opacity: dim ? 0.4 : 1, boxShadow: on ? ('0 0 5px ' + col) : 'none' },
+          labelStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+        }; });
+      })(this),      slashDisplay: (compact || this.state.searchFocus) ? 'none' : 'inline-block',
       searchCloseDisplay: (this.state.searchFocus || (compact && this.state.searchExpanded)) ? 'flex' : 'none',
       closeSearch: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ query: '', searchFocus: false, searchExpanded: false }); if (this.searchEl) this.searchEl.blur(); },
       recentTextDisplay: compact ? 'none' : 'inline',
@@ -4208,6 +4324,11 @@ class Component extends DCLogic {
       })),
       paletteEmpty: !!this.state.paletteOpen && pItemsRaw.length === 0,
       shortcutsOpen: !!this.state.shortcutsOpen,
+      statsOpen: !!this.state.statsOpen,
+      closeStats: () => this.setState({ statsOpen: false }),
+      stats: this.state.statsOpen ? this.computeStats() : null,
+      menuStats: () => this.openStats(),
+      menuExportPng: () => { this.setState({ menuOpen: false }); this.exportGraphPNG(); },
       closeShortcuts: () => this.setState({ shortcutsOpen: false }),
       openShortcuts: () => this.setState({ shortcutsOpen: true }),
       shortcutRows: [
