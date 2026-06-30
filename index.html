@@ -228,7 +228,7 @@
               <div style="font-size: 10.5px; color: #8c8170; margin-bottom: 8px;">Node color</div>
               <div style="display: flex; flex-direction: column; gap: 3px;">
                 <sc-for list="{{ nodeColorSwatches }}" as="s" hint-placeholder-count="2">
-                  <button type="button" onClick="{{ s.onClick }}" style="{{ s.row }}" style-hover="background: #2c2316;">
+                  <button type="button" onClick="{{ s.onClick }}" style="{{ s.row }}" style-hover="background: #2c2316; box-shadow: inset 2px 0 0 #d8a942;">
                     <span style="{{ s.sw }}"></span>
                     <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
                       <span style="font-size: 11.5px; color: #ece1cf;">{{ s.title }}</span>
@@ -1667,7 +1667,10 @@ class Component extends DCLogic {
         .linkDirectionalParticles((l) => this.linkParticlesFn(l))
         .linkDirectionalParticleSpeed((l) => (this.isHot(l) ? 0.0038 : 0.0024))
         .linkDirectionalParticleWidth((l) => (this.isHot(l) ? 2.4 : 1.3))
-        .linkDirectionalParticleColor((l) => (l.type === 'wiki' ? (this.state.wikiEdgeColor || this.wikiColor) : (this.state.treeEdgeColor || this.accentBright)))
+        .linkDirectionalParticleColor((l) => {
+          if (this._filterActive()) { const s = (l.source && l.source.id != null) ? l.source.id : l.source, t = (l.target && l.target.id != null) ? l.target.id : l.target; if (this._dimAlphaId(s) < 1 || this._dimAlphaId(t) < 1) return 'rgba(120,108,86,0.10)'; }
+          return l.type === 'wiki' ? (this.state.wikiEdgeColor || this.wikiColor) : (this.state.treeEdgeColor || this.accentBright);
+        })
         .nodeCanvasObjectMode(() => 'replace')
         .nodeCanvasObject((n, ctx, scale) => this.draw2d(n, ctx, scale))
         .nodePointerAreaPaint((n, color, ctx) => { const r = this.nodeRadius(n); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill(); })
@@ -3526,7 +3529,7 @@ class Component extends DCLogic {
     return { total: nodes.length, wikiLinks, treeLinks, orphans: orphansAll.length, hubs, backs, orphanList, tags };
   }
   toggleTree = () => this.setState((s) => ({ showTree: !s.showTree }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });  toggleWiki = () => this.setState((s) => ({ showWiki: !s.showWiki }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });
-  _kickGraph = () => { if (!this.graph) return; try { this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
+  _kickGraph = () => { if (!this.graph) return; try { this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); if (this.graph.linkDirectionalParticleColor) this.graph.linkDirectionalParticleColor(this.graph.linkDirectionalParticleColor()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
   setNodeSize = (e) => { const v = parseFloat(e.target.value); this.setState({ nodeSizeMul: v }); try { sessionStorage.setItem('kg-node-size', v); } catch (_) {} this._kickGraph(); };
   toggleNodeDegree = () => { const next = !(this.state.nodeSizeByDegree !== false); this.setState({ nodeSizeByDegree: next }); try { sessionStorage.setItem('kg-node-degree', next ? '1' : '0'); } catch (_) {} this._kickGraph(); };
   setEdgeWidth = (e) => { const v = parseFloat(e.target.value); this.setState({ edgeWidthMul: v }); try { sessionStorage.setItem('kg-edge-width', v); } catch (_) {} this._kickGraph(); };
@@ -4019,7 +4022,7 @@ class Component extends DCLogic {
     if (mNode) {
       const hasCh = mNode.children && mNode.children.length;
       menuExpandDisabled = !hasCh;
-      menuExpandLabel = !hasCh ? 'no children' : (!this.collapsed.has(mNode.id) ? '\u2296 collapse children' : ('\u2295 expand ' + mNode.children.length + ' children'));
+      menuExpandLabel = !hasCh ? '\u2298 no children' : (!this.collapsed.has(mNode.id) ? '\u2296 collapse children' : ('\u2295 expand ' + mNode.children.length + ' children'));
       menuExpandStyle = Object.assign({}, menuBtn, hasCh ? null : { color: '#4a4337', cursor: 'default' });
       const MW = 252, MH = 256;   // approx node-menu footprint, used to keep it fully on-screen
       if (this.state.menuNodeAt) {
@@ -4470,7 +4473,7 @@ class Component extends DCLogic {
       dockBottomStyle: dockStyleFor('bottom'),
       dockRightStyle: dockStyleFor('right'),
       sideRootShow: !!(sel && sel.id !== this.rootId),
-      sideRootLabel: sideRootIsActing ? '\u21ba unmake acting root' : '\u2693 make acting root',
+      sideRootLabel: sideRootIsActing ? '\u21ba unmake acting root' : '\u2693 make as root',
       sideRoot: sel ? () => { this.setState({ sideMenu: false }); if (sideRootIsActing) this.menuUnmake(); else this.menuMakeRoot(sel.id); } : () => {},
       menuCenter: mNode ? () => { this.setState({ menuNodeId: null }); this.selectNode(mNode.id); this.focusNode(mNode, false); } : () => {},
       menuExpand: mNode ? () => this.menuToggle(mNode.id) : () => {},
@@ -4481,7 +4484,7 @@ class Component extends DCLogic {
       menuHideDisabled: !(mNode && mNode.id !== (this.actingRoot || this.rootId)),
       menuHideStyle: Object.assign({}, menuBtn, (mNode && mNode.id !== (this.actingRoot || this.rootId)) ? null : { color: '#4a4337', cursor: 'default' }),
       menuRootShow: !!(mNode && mNode.id !== this.rootId),
-      menuRootLabel: (mNode && mNode.id === this.actingRoot && mNode.id !== this.rootId) ? '\u21ba unmake acting root' : '\u2693 make acting root',
+      menuRootLabel: (mNode && mNode.id === this.actingRoot && mNode.id !== this.rootId) ? '\u21ba unmake acting root' : '\u2693 make as root',
       menuRoot: mNode ? () => ((mNode.id === this.actingRoot && mNode.id !== this.rootId) ? this.menuUnmake() : this.menuMakeRoot(mNode.id)) : () => {},
       menuNewTab: mNode ? () => this.openInNewTab(mNode.id) : () => {},
       menuOpenHere: mNode ? () => { this.setState({ menuNodeId: null }); this.navigateTo(mNode.id); } : () => {},
