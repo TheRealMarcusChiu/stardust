@@ -252,7 +252,7 @@
 
   <!-- legend (top-left) -->
   <sc-if value="{{ legendShow }}" hint-placeholder-val="{{ false }}">
-    <div onContextMenu="{{ onLegendMenu }}" style="position: absolute; left: {{ legendLeft }}; top: {{ legendTop }}; z-index: 15; pointer-events: auto; display: flex; flex-direction: column;">
+    <div onContextMenu="{{ onLegendMenu }}" style="position: absolute; left: {{ legendLeft }}; top: {{ legendTop }}; z-index: 15; pointer-events: auto; display: flex; flex-direction: column; background: rgba(15,12,9,0.5); border-radius: 8px; padding: 8px 8px 6px;">
       <div style="font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #b78f3a; margin-bottom: 4px; text-align: center;">Legend</div>
       <div class="gx-scroll" style="display: flex; flex-direction: column; gap: 3px; max-height: {{ legendMaxH }}; overflow-y: auto; overflow-x: hidden; padding-right: 2px;">
         <sc-for list="{{ legendGroups }}" as="g" hint-placeholder-count="3">
