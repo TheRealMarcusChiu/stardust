@@ -2269,49 +2269,9 @@ class Component extends DCLogic {
 
   focusNode(n, strong) {
     if (!this.graph || n.x == null) return;
-    const z0 = this.graph.zoom() || 1;
-    const tz = strong ? Math.max(z0, 2.2) : z0;
-    const ins = this.occlusion();
-    if (this.isNodeVisible(n)) {
-      // Already on screen — pan straight to it (original behavior).
-      this.center2d(n.x, n.y, 800, tz);
-      if (strong) this.animateZoom(tz, 800);
-      return;
-    }
-    // Off-screen: one continuous motion. The camera center travels in a STRAIGHT LINE from the
-    // current view center to the node, while the zoom dips out (far enough that the node comes
-    // into view mid-flight) and eases back in, landing at the pre-motion zoom level.
-    const cw = this.graphEl.clientWidth, ch = this.graphEl.clientHeight;
-    let c0; try { c0 = this.graph.screen2GraphCoords(cw / 2, ch / 2); } catch (e) { c0 = null; }
-    if (!c0) { this.center2d(n.x, n.y, 800, tz); return; }
-    // Graph-space center that keeps the node centered in the VISIBLE (non-sidebar) region.
-    const cx1 = n.x + (ins.right - ins.left) / (2 * tz);
-    const cy1 = n.y + (ins.bottom - ins.top) / (2 * tz);
-    const visW = Math.max(60, cw - ins.left - ins.right), visH = Math.max(60, ch - ins.top - ins.bottom);
-    const dx = n.x - c0.x, dy = n.y - c0.y;
-    const d = Math.hypot(dx, dy);
-    const pad = 80;
-    // Zoom at which the whole start→node span fits inside the visible region (with padding).
-    let zOut = Math.min(
-      tz,
-      (visW - pad * 2) / Math.max(1, Math.abs(dx) * 1.6),
-      (visH - pad * 2) / Math.max(1, Math.abs(dy) * 1.6),
-      (Math.min(visW, visH) - pad * 2) / Math.max(1, d)
-    );
-    zOut = Math.max(0.02, zOut);
-    const ms = Math.min(1400, 700 + d * 0.15);
-    clearInterval(this._viewTimer);   // take over any in-flight camera tween
-    const t0 = performance.now();
-    const apply = (zi, cxi, cyi) => { try { this.graph.zoom(zi); this.graph.centerAt(cxi, cyi); } catch (e) {} };
-    this._viewTimer = setInterval(() => {
-      if (!this.graph) { clearInterval(this._viewTimer); return; }
-      const p = Math.min(1, (performance.now() - t0) / ms);
-      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;   // easeInOutQuad along the line
-      // Straight-line center path; zoom dips to zOut at mid-flight (smooth sine bump) and returns.
-      const z = tz + (zOut - tz) * Math.sin(Math.PI * e);
-      apply(z, c0.x + (cx1 - c0.x) * e, c0.y + (cy1 - c0.y) * e);
-      if (p >= 1) { clearInterval(this._viewTimer); apply(tz, cx1, cy1); }
-    }, 16);
+    const tz = strong ? Math.max(this.graph.zoom(), 2.2) : this.graph.zoom();
+    this.center2d(n.x, n.y, 800, tz);
+    if (strong) this.animateZoom(tz, 800);
   }
 
   clearSelection() {
