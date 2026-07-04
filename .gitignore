@@ -20,7 +20,7 @@ Thumbs.db
 
 # Build / temp output
 dist/
-#build/
+build/
 .cache/
 tmp/
 *.tmp

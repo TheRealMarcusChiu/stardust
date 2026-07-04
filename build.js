@@ -12,7 +12,11 @@
  * http(s) AND file:// — no fetch/server required.
  *
  * Vault layout: every node is a folder PLUS a same-named `.md` note that lives
- * beside that folder. The note's children live inside the folder.
+ * beside that folder. The note's children live inside the folder. Both halves
+ * are optional:
+ *   - a `.md` file with NO matching folder is simply a leaf note;
+ *   - a folder with NO matching `.md` gets a synthesized note whose body is a
+ *     rendered list of all the children underneath it.
  *
  *   var-log.md                     (a note)
  *   var-log/                       (its children)
@@ -53,6 +57,15 @@ function walk(dir, acc = []) {
     const p = path.join(dir, name);
     if (fs.statSync(p).isDirectory()) walk(p, acc);
     else if (name.endsWith('.md')) acc.push(p);
+  }
+  return acc;
+}
+
+/* ---- recursively collect every directory under the vault ---- */
+function walkDirs(dir, acc = []) {
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name);
+    if (fs.statSync(p).isDirectory()) { acc.push(p); walkDirs(p, acc); }
   }
   return acc;
 }
@@ -286,6 +299,68 @@ for (const file of walk(VAULT)) {
     body: text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim(),
     links: [...text.matchAll(/\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]/g)].map((m) => m[1].trim()),
   };
+}
+
+/* ---- synthesize notes for directories that have no matching .md ----
+ * A folder like `vault/a/b/` normally pairs with `vault/a/b.md`. When that
+ * note is missing, the folder still defines a place in the hierarchy, so we
+ * create a virtual note for it. Its body is a rendered list of the direct
+ * children beneath it (as wikilinks, so they resolve + navigate normally). */
+const dirKeys = walkDirs(VAULT).map((p) => path.relative(VAULT, p).split(path.sep).join('/'));
+for (const dk of dirKeys) {
+  if (recs[dk]) continue;   // folder has its .md twin — nothing to do
+  recs[dk] = {
+    key: dk,
+    parentKey: parentKeyOf(dk),
+    title: titleOf(dk),
+    fm: { tags: [] },
+    body: '',        // filled below, once every rec (incl. nested synthesized dirs) exists
+    links: [],
+    synthetic: true,
+  };
+}
+/* ---- multiple top-level entries: tie them under one custom root ----
+ * The garden expects a single root. When several .md files and/or folders sit
+ * directly inside vault/ (top-level recs with no parent), synthesize a root
+ * node (named after config.yml's `title`, falling back to "vault") and
+ * re-parent every top-level entry beneath it. Like other synthesized notes,
+ * its body becomes a rendered list of its children (filled below).          */
+const topKeys = Object.keys(recs).filter((k) => recs[k].parentKey === null);
+if (topKeys.length > 1) {
+  let rootTitle = 'vault';
+  try {
+    const cfgPath = path.join(__dirname, 'config.yml');
+    if (fs.existsSync(cfgPath)) {
+      const cfg = parseYaml(fs.readFileSync(cfgPath, 'utf8'));
+      if (cfg && cfg.title) rootTitle = String(cfg.title);
+    }
+  } catch (e) {}
+  const ROOT_KEY = '__vault_root__';   // not a real path, so it can never collide with a note key
+  recs[ROOT_KEY] = {
+    key: ROOT_KEY,
+    parentKey: null,
+    title: rootTitle,
+    fm: { tags: [] },
+    body: '',
+    links: [],
+    synthetic: true,
+  };
+  topKeys.forEach((k) => { recs[k].parentKey = ROOT_KEY; });
+  console.log(`Multiple top-level entries (${topKeys.length}) — created custom root "${rootTitle}".`);
+}
+
+// Fill the synthesized bodies now that the full tree is known.
+for (const k of Object.keys(recs)) {
+  const r = recs[k];
+  if (!r.synthetic) continue;
+  const children = Object.values(recs)
+    .filter((c) => c.parentKey === k)
+    .map((c) => c.title)
+    .sort((a, b) => a.localeCompare(b));
+  r.body = children.length
+    ? children.map((t) => '- [[' + t + ']]').join('\n')
+    : '*This section is empty.*';
+  r.links = children.slice();
 }
 
 /* ---- drop `private` notes and everything beneath them ---- */
