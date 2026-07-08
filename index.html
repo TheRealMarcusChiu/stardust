@@ -358,8 +358,8 @@
       </div>
     </sc-if>
     <div style="flex-shrink: 0; box-sizing: border-box; height: {{ sideSearchH }}; display: flex; align-items: center; gap: 7px; padding: 0 6px 0 12px; background: rgba(34,28,19,0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid rgba(42,34,24,0.55); position: relative; z-index: 19;">
-      <button type="button" onClick="{{ p.navBack }}" title="Back" style="{{ p.navBackStyle }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">‹</button>
-      <button type="button" onClick="{{ p.navForward }}" title="Forward" style="{{ p.navFwdStyle }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">›</button>
+      <button type="button" onClick="{{ p.navBack }}" onContextMenu="{{ p.navBackContext }}" title="Back" style="{{ p.navBackStyle }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">‹</button>
+      <button type="button" onClick="{{ p.navForward }}" onContextMenu="{{ p.navFwdContext }}" title="Forward" style="{{ p.navFwdStyle }}" style-hover="color: #f4cf6a; background: rgba(216,169,66,0.18); transform: scale(1.12);">›</button>
       <button type="button" onClick="{{ p.locate }}" title="Locate in graph" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: transparent; color: #d8a942; cursor: pointer; font-size: 17px; transition: color .15s, transform .15s;" style-hover="color: #ffe9a8; transform: scale(1.22);">⌖</button>
       <button type="button" onClick="{{ p.togglePin }}" title="{{ p.pinTitle }}" style="{{ pinStarStyle }}" style-hover="color: #ffe9a8; transform: scale(1.18);">{{ p.pinStar }}</button>
       <div style="position: relative; flex: 1 1 auto; min-width: 0;">
@@ -518,6 +518,16 @@
     <div data-linkmenu="1" style="{{ linkMenuStyle }}">
       <div style="min-width: 200px; background: #16120c; border: 1px solid #2a2218; border-radius: 7px; padding: 5px; box-shadow: 0 14px 30px -14px rgba(0,0,0,0.8); font-family: 'JetBrains Mono', monospace;">
         <button type="button" onClick="{{ linkMenuOpen }}" style="{{ menuItemBtnStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;">⊞ open as new tab in side panel</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ navMenuShow }}" hint-placeholder-val="{{ false }}">
+    <div data-navmenu="1" style="{{ navMenuStyle }}">
+      <div class="gx-scroll" style="min-width: 210px; max-width: 280px; max-height: 320px; overflow-y: auto; background: #16120c; border: 1px solid #2a2218; border-radius: 7px; padding: 5px; box-shadow: 0 14px 30px -14px rgba(0,0,0,0.8); font-family: 'JetBrains Mono', monospace; display: flex; flex-direction: column; gap: 2px;">
+        <sc-for list="{{ navMenuItems }}" as="h" hint-placeholder-count="3">
+          <button type="button" onClick="{{ h.onClick }}" style="{{ menuItemBtnStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;">{{ h.label }}</button>
+        </sc-for>
       </div>
     </div>
   </sc-if>
@@ -970,13 +980,7 @@ class Component extends DCLogic {
     const nodes = this.graph.graphData().nodes;
     let best = null, bestD = Infinity;
     for (let i = 0; i < nodes.length; i++) { const nd = nodes[i]; const d = Math.hypot(nd.x - pt.x, nd.y - pt.y); if (d < bestD) { bestD = d; best = nd; } }
-    if (best && bestD <= this.nodeRadius(best)) {
-      // Route to the active pane, exactly like a node click (activateNode) — never force the
-      // primary. Otherwise a library background-click on a near-miss anchors the primary while
-      // the app's own handler anchors the active pane, updating both.
-      if (!this.activeIsPrimary()) { this.navPane(this.activePaneEff(), best.id); return; }
-      this.selectNode(best.id); this.focusNode(best, false);
-    }
+    if (best && bestD <= this.nodeRadius(best)) this.navigateTo(best.id);   // same anchor path as a node click / wikilink
   }
   hoverZoneFor(n) {
     if (!n || !(n.children && n.children.length)) return 'node';
@@ -1182,7 +1186,7 @@ class Component extends DCLogic {
     }
     this._lastClickId = node.id; this._lastClickT = now;
     clearTimeout(this._clickTimer);
-    this._clickTimer = setTimeout(() => { this._clickTimer = null; if (!this.activeIsPrimary()) { this.navPane(this.activePaneEff(), node.id); return; } this.selectNode(node.id); this.focusNode(node, false); }, 300);
+    this._clickTimer = setTimeout(() => { this._clickTimer = null; this.navigateTo(node.id); }, 300);   // node click = the same anchor path as a wikilink
   }
   runCollide() {
     if (!this.graph || this._egg) return;
@@ -1853,8 +1857,31 @@ class Component extends DCLogic {
 
   navTabKey() { const pp = this.paneObj(this.primaryPaneId()); return this._activeKey || (pp && pp.selectedKey) || '_'; }
   navState() { return (this.navHistByKey || (this.navHistByKey = {}))[this.navTabKey()] || { hist: [], idx: -1 }; }
-  navBack = () => { const s = this.navState(); if (s.idx > 0) { this._navJump = true; s.idx--; const id = s.hist[s.idx]; if (this.nodeById[id]) this.focusNodeGraph(id); this._navJump = false; } };
-  navForward = () => { const s = this.navState(); if (s.idx < s.hist.length - 1) { this._navJump = true; s.idx++; const id = s.hist[s.idx]; if (this.nodeById[id]) this.focusNodeGraph(id); this._navJump = false; } };
+  navStateFor(pid) { return pid === this.primaryPaneId() ? this.navState() : this.navStatePane(pid); }
+  // Right-click on ‹ / › opens a browser-style history menu for that pane and direction.
+  openNavMenu = (pid, dir) => (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const s = this.navStateFor(pid);
+    const has = dir === 'back' ? s.idx > 0 : s.idx < s.hist.length - 1;
+    if (!has) return;
+    this.setState({ navMenu: { pid, dir, x: e.clientX, y: e.clientY } });
+  };
+  // Jump straight to history index `idx` (from the menu) — same anchor as a wikilink click.
+  navJumpTo(pid, idx) {
+    const s = this.navStateFor(pid);
+    if (idx < 0 || idx >= s.hist.length) return;
+    s.idx = idx;
+    const id = s.hist[idx];
+    this._navJump = true;
+    if (this.nodeById[id]) this.navPane(pid, id, true);
+    this._navJump = false;
+    this.setState({ navMenu: null });
+  }
+  // Back/forward = a history jump that invokes the SAME anchor functionality as clicking a
+  // wikilink (navPane: reveal if off-screen, edge highlight, center with zoom-arc, glow) —
+  // just without pushing a new history entry.
+  navBack = () => { const s = this.navState(); if (s.idx > 0) { this._navJump = true; s.idx--; const id = s.hist[s.idx]; if (this.nodeById[id]) this.navPane(this.primaryPaneId(), id, true); this._navJump = false; } };
+  navForward = () => { const s = this.navState(); if (s.idx < s.hist.length - 1) { this._navJump = true; s.idx++; const id = s.hist[s.idx]; if (this.nodeById[id]) this.navPane(this.primaryPaneId(), id, true); this._navJump = false; } };
   // ---- Nested split layout ----------------------------------------------
   // state.layout is a binary tree: { pane: id } | { dir: 'row'|'col', ratio, a, b }.
   // state.panes maps pane id -> { tabs: [key...], selectedKey }. The FIRST pane in tree
@@ -3499,7 +3526,7 @@ class Component extends DCLogic {
   };
   menuUnmake = () => { this.setState({ menuNodeId: null }); this.collapseAll(); };
   // Close any open popup/menu when the pointer goes down outside its own container.
-  DISMISSABLE = [['sideMenu', '[data-sidemenu]', false], ['sbMenu', '[data-sbmenu]', null], ['recentOpen', '[data-recent]', false], ['pinOpen', '[data-pins]', false], ['menuOpen', '[data-controlsmenu]', false], ['tabMenu', '[data-tabmenu]', null], ['barMenu', '[data-barmenu]', null], ['bgMenu', '[data-bgmenu]', null], ['miniMenu', '[data-minimenu]', null], ['legendMenu', '[data-legendmenu]', null], ['linkMenu', '[data-linkmenu]', null], ['headerMenu', '[data-headermenu]', null]];
+  DISMISSABLE = [['navMenu', '[data-navmenu]', null], ['sideMenu', '[data-sidemenu]', false], ['sbMenu', '[data-sbmenu]', null], ['recentOpen', '[data-recent]', false], ['pinOpen', '[data-pins]', false], ['menuOpen', '[data-controlsmenu]', false], ['tabMenu', '[data-tabmenu]', null], ['barMenu', '[data-barmenu]', null], ['bgMenu', '[data-bgmenu]', null], ['miniMenu', '[data-minimenu]', null], ['legendMenu', '[data-legendmenu]', null], ['linkMenu', '[data-linkmenu]', null], ['headerMenu', '[data-headermenu]', null]];
   onDocDown = (e) => {
     const el = e.target;
     const outside = (sel) => !(el && el.closest && el.closest(sel));
@@ -3738,13 +3765,13 @@ class Component extends DCLogic {
     if (this.state.fullPage) this.setState({ fullPage: false }, center);
     else center();
   };
-  // Crosshair for any pane: anchors that pane's active-tab note — makes the pane active (if it
-  // isn't) and runs the full anchor (reveal if off-screen, thicken edges, center + glow). Stable:
-  // the graph only reflows when a reveal is actually needed, so an already-visible node just centers.
+  // Crosshair for any pane: makes the pane active, then invokes the EXACT same anchor as
+  // clicking a wikilink (navPane) on that pane's active-tab note.
   locateInPane = (pid) => {
     if (!this.paneObj(pid)) return;
-    if (this.activePaneEff() !== pid) this.setState({ activePane: pid }, () => this.anchorActivePane());
-    else this.anchorActivePane();
+    const go = () => { const id = this.paneNodeId(pid); if (id != null && this.nodeById[id]) this.navPane(pid, id); };
+    if (this.activePaneEff() !== pid) this.setState({ activePane: pid }, go);
+    else go();
   };
   onSearchInput = (e) => { this._searchPrevIdx = 0; this.setState({ query: e.target.value, searchIdx: 0 }); this._kickGraph(); };
   // Per-pane search bar plumbing (curried by pane id).
@@ -4239,6 +4266,8 @@ class Component extends DCLogic {
         addTab: () => this.addRootTab(pid),
         navBack: isPrimary ? this.navBack : () => this.navBackPane(pid),
         navForward: isPrimary ? this.navForward : () => this.navForwardPane(pid),
+        navBackContext: this.openNavMenu(pid, 'back'),
+        navFwdContext: this.openNavMenu(pid, 'forward'),
         navBackStyle: Object.assign(this.navBtnStyle(navSt, false, '25px'), { marginLeft: '-6px' }),
         navFwdStyle: this.navBtnStyle(navSt, true, '25px'),
         locate: () => this.locateInPane(pid),
@@ -4552,6 +4581,21 @@ class Component extends DCLogic {
       onPeekLeave: this.onPeekLeave,
       linkMenuShow: !!this.state.linkMenu,
       headerMenuShow: !!this.state.headerMenu,
+      // Right-click history menu on ‹ / ›: entries nearest-first, like a browser.
+      navMenuShow: !!this.state.navMenu,
+      navMenuStyle: ctxMenuStyle(this.state.navMenu, 240),
+      navMenuItems: (function (self) {
+        const nm = self.state.navMenu;
+        if (!nm) return [];
+        const s = self.navStateFor(nm.pid);
+        const idxs = [];
+        if (nm.dir === 'back') { for (let i = s.idx - 1; i >= 0; i--) idxs.push(i); }
+        else { for (let i = s.idx + 1; i < s.hist.length; i++) idxs.push(i); }
+        return idxs.slice(0, 12).map((i) => {
+          const n = self.nodeById && self.nodeById[s.hist[i]];
+          return { label: n ? n.name : '(missing note)', onClick: () => self.navJumpTo(nm.pid, i) };
+        });
+      })(this),
       headerMenuStyle: ctxMenuStyle(this.state.headerMenu, 220),
       copyHeaderLink: this.copyHeaderLink,
       linkMenuStyle: ctxMenuStyle(this.state.linkMenu, 220),
