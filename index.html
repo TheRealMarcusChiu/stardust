@@ -1820,9 +1820,9 @@ class Component extends DCLogic {
         proj + 'attribute vec2 aPos; attribute float aSize; attribute vec4 aCol; uniform float uScale; varying vec4 vCol; void main(){ gl_Position=ndc(aPos); gl_PointSize=max(1.0, aSize*uScale); vCol=aCol; }',
         'precision mediump float; varying vec4 vCol; void main(){ vec2 d=gl_PointCoord-vec2(0.5); if(dot(d,d)>0.25) discard; gl_FragColor=vec4(vCol.rgb*vCol.a, vCol.a); }');
       this._glLn = prog(
-        proj + 'attribute vec2 aPos; attribute vec4 aCol; varying vec4 vCol; void main(){ gl_Position=ndc(aPos); vCol=aCol; }',
+        proj + 'attribute vec2 aPos; attribute vec2 aOff; attribute vec4 aCol; uniform float uGpp; varying vec4 vCol; void main(){ gl_Position=ndc(aPos + aOff*uGpp); vCol=aCol; }',
         'precision mediump float; varying vec4 vCol; void main(){ gl_FragColor=vec4(vCol.rgb*vCol.a, vCol.a); }');
-      this._glBufs = { lp: gl.createBuffer(), lc: gl.createBuffer(), np: gl.createBuffer(), ns: gl.createBuffer(), nc: gl.createBuffer() };
+      this._glBufs = { lp: gl.createBuffer(), ln: gl.createBuffer(), lc: gl.createBuffer(), np: gl.createBuffer(), ns: gl.createBuffer(), nc: gl.createBuffer() };
       this._glCanvas = cv;
       this._gl = gl;
       return gl;
@@ -1831,15 +1831,25 @@ class Component extends DCLogic {
   _glBuild() {
     const gl = this._gl;
     const data = this.graph.graphData();
-    const lp = [], lc = [], np = [], ns = [], nc = [];
+    const lp = [], ln = [], lc = [], np = [], ns = [], nc = [];
+    const mul = this.state.edgeWidthMul || 1;
     for (const l of data.links) {
       const s = (l.source && l.source.id != null) ? l.source : this.nodeById[l.source];
       const t = (l.target && l.target.id != null) ? l.target : this.nodeById[l.target];
       if (!s || !t || s.x == null || t.x == null) continue;
       if (this.isHot(l) || this.isPathHot(l)) continue;   // hot edges stay live on the 2d canvas
       const c = this._colVec(this.linkColorFn(l));
-      lp.push(s.x, s.y, t.x, t.y);
-      lc.push(c[0], c[1], c[2], c[3], c[0], c[1], c[2], c[3]);
+      // Links as screen-space quads: each vertex carries a perpendicular offset scaled by the
+      // link's half-width in px (slider-adjusted); the shader converts px → graph units per frame,
+      // so thickness stays constant on screen and follows the Edge-thickness slider.
+      const hw = (0.45 * mul) / 2;
+      let dx = t.x - s.x, dy = t.y - s.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const ox = (-dy / len) * hw, oy = (dx / len) * hw;
+      // two triangles: (s+,s-,t+) (t+,s-,t-)
+      lp.push(s.x, s.y, s.x, s.y, t.x, t.y, t.x, t.y, s.x, s.y, t.x, t.y);
+      ln.push(ox, oy, -ox, -oy, ox, oy, ox, oy, -ox, -oy, -ox, -oy);
+      for (let i = 0; i < 6; i++) lc.push(c[0], c[1], c[2], c[3]);
     }
     for (const n of data.nodes) {
       if (n.x == null || this._cacheSkip(n)) continue;    // persistent live nodes draw on top each frame
@@ -1847,7 +1857,7 @@ class Component extends DCLogic {
       np.push(n.x, n.y); ns.push(this.nodeRadius(n)); nc.push(c[0], c[1], c[2], c[3]);
     }
     const up = (buf, arr) => { gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW); };
-    up(this._glBufs.lp, lp); up(this._glBufs.lc, lc);
+    up(this._glBufs.lp, lp); up(this._glBufs.ln, ln); up(this._glBufs.lc, lc);
     up(this._glBufs.np, np); up(this._glBufs.ns, ns); up(this._glBufs.nc, nc);
     this._glCounts = { lines: lp.length / 2, pts: np.length / 2 };
     this._bmDirty = false;
@@ -1888,9 +1898,11 @@ class Component extends DCLogic {
     if (phase === 'lines' && cnt.lines) {
       gl.useProgram(this._glLn);
       gl.uniform4fv(gl.getUniformLocation(this._glLn, 'uRect'), rect);
+      gl.uniform1f(gl.getUniformLocation(this._glLn, 'uGpp'), rect[2] / cv.width);   // graph units per device px
       attr(this._glLn, 'aPos', this._glBufs.lp, 2);
+      attr(this._glLn, 'aOff', this._glBufs.ln, 2);
       attr(this._glLn, 'aCol', this._glBufs.lc, 4);
-      gl.drawArrays(gl.LINES, 0, cnt.lines);
+      gl.drawArrays(gl.TRIANGLES, 0, cnt.lines);
     }
     if (phase === 'points' && cnt.pts) {
       gl.useProgram(this._glPt);
