@@ -110,6 +110,14 @@
   <!-- hover tooltip -->
   <div ref="{{ setTipEl }}" style="position: absolute; z-index: 65; pointer-events: none; opacity: 0; transition: opacity .12s ease; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.06em; color: #f0c560; background: #16120c; border: 1px solid #2a2218; padding: 5px 9px; border-radius: 5px; white-space: nowrap; box-shadow: 0 8px 22px -10px rgba(0,0,0,0.85);"></div>
 
+  <sc-if value="{{ bitmapNoticeShow }}" hint-placeholder-val="{{ false }}">
+    <div style="{{ bitmapNoticeStyle }}">
+      <span style="color: #d8a942; font-size: 14px; flex: 0 0 auto;">▣</span>
+      <span>Large graph — switched to fast bitmap rendering. You can change back to the original live rendering in the ⚙ controls menu.</span>
+      <button type="button" onClick="{{ bitmapNoticeClose }}" title="Dismiss" style="flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: none; border-radius: 5px; background: transparent; color: #8c8170; cursor: pointer; font-size: 11px; line-height: 1;" style-hover="color: #f0b6a3; background: #2c2115;">✕</button>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ linkPeekShow }}" hint-placeholder-val="{{ false }}">
     <div onMouseEnter="{{ onPeekEnter }}" onMouseLeave="{{ onPeekLeave }}" style="{{ linkPeekStyle }}">
       <div style="font-family: 'Newsreader', Georgia, serif; font-style: italic; font-weight: 500; font-size: 15px; color: #ece1cf; margin-bottom: 5px;">{{ linkPeekTitle }}</div>
@@ -217,6 +225,7 @@
             <button type="button" onClick="{{ menuToggleLegend }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>{{ legendToggleLabel }}</span></button>
             <button type="button" onClick="{{ menuToggleMinimap }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>{{ minimapToggleLabel }}</span></button>
             <button type="button" onClick="{{ menuExportPng }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>⤓ Export graph as PNG</span></button>
+            <button type="button" onClick="{{ menuToggleBitmap }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span>{{ bitmapToggleLabel }}</span></button>
             <div style="height: 1px; background: #2a2218; margin: 5px 4px;"></div>
             <button type="button" onClick="{{ toggleTree }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span style="display: inline-flex; align-items: center; gap: 6px;">— Tree edges<span onClick="{{ infoStop }}" onMouseEnter="{{ infoTreeOn }}" onMouseLeave="{{ infoOff }}" style="cursor: help; color: #6c6354; display: inline-flex; align-items: center; position: relative;" style-hover="color: #d8a942;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.4"></line><circle cx="8" cy="4.6" r="0.75" fill="currentColor" stroke="none"></circle></svg><sc-if value="{{ infoTreeShow }}" hint-placeholder-val="{{ false }}"><span style="{{ infoTipStyle }}">Solid lines that trace each note's parent–child place in the hierarchy — every note links down to those nested beneath it. The backbone tree of the garden.</span></sc-if></span></span><span style="{{ treeChkStyle }}">{{ treeChk }}</span></button>
             <button type="button" onClick="{{ toggleWiki }}" style="{{ menuItemStyle }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;"><span style="display: inline-flex; align-items: center; gap: 6px;">⋯ Wikilink edges<span onClick="{{ infoStop }}" onMouseEnter="{{ infoWikiOn }}" onMouseLeave="{{ infoOff }}" style="cursor: help; color: #6c6354; display: inline-flex; align-items: center; position: relative;" style-hover="color: #7fb0b8;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.4"></line><circle cx="8" cy="4.6" r="0.75" fill="currentColor" stroke="none"></circle></svg><sc-if value="{{ infoWikiShow }}" hint-placeholder-val="{{ false }}"><span style="{{ infoTipStyle }}">Dashed lines for [[wikilink]] references written inside notes — direct links between any two notes, independent of the tree, so related notes in different branches stay connected.</span></sc-if></span></span><span style="{{ wikiChkStyle }}">{{ wikiChk }}</span></button>
@@ -681,7 +690,7 @@
   &quot;edgeFlow&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot; }
 }">
 class Component extends DCLogic {
-  state = { mode: '2d', selectedId: null, ready: false, anim: false, tick: 0, fullPage: false, query: '', searchFocus: false, searchIdx: 0, menuNodeId: null, linkMenu: null, layout: { pane: 'p1' }, panes: { p1: { tabs: [], selectedKey: null } }, activePane: 'p1', tabNode: {}, tabMenu: null, barMenu: null, metaPop: null, splitSubOpen: false, legendHidden: (typeof window !== 'undefined' && window.innerWidth < 700), minimapForce: (typeof window !== 'undefined' && window.innerWidth < 700) ? false : undefined, splitHover: false, hoverTab: null, closeHover: null, tabsCollapsed: {}, lockTabW: {}, winW: (typeof window !== 'undefined' ? window.innerWidth : 1280), winH: (typeof window !== 'undefined' ? window.innerHeight : 800), searchExpanded: false, headerH: 64, sidebarW: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-w')); return (v && v >= 320) ? v : 452; } catch(e){ return 452; } })(), mdConfig: this.loadMdConfig(), mdConfigOpen: false, mdCfgExpanded: {}, showTree: true, showWiki: true, menuOpen: false, hoverId: null, dragging: false, dockPreview: null, undockLeft: null, undockTop: null, dock: (function(){ try { var d = sessionStorage.getItem('kg-dock'); return ['right','left','bottom','undock'].indexOf(d) >= 0 ? d : 'right'; } catch(e){ return 'right'; } })(), sidebarH: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-h')); return (v && v >= 200) ? v : Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.46); } catch(e){ return 360; } })(), bootMsg: 'fetching the garden \u2026', nodeSizeMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-node-size')); return (v>0)?v:1; } catch(e){ return 1; } })(), edgeWidthMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-edge-width')); return (v>0)?v:1; } catch(e){ return 1; } })(), nodeSizeByDegree: (function(){ try { return sessionStorage.getItem('kg-node-degree') !== '0'; } catch(e){ return true; } })(), nodeColorMode: (function(){ try { return sessionStorage.getItem('kg-node-color')||'category'; } catch(e){ return 'category'; } })(), treeEdgeColor: (function(){ try { return sessionStorage.getItem('kg-tree-color')||'#d8a942'; } catch(e){ return '#d8a942'; } })(), wikiEdgeColor: (function(){ try { return sessionStorage.getItem('kg-wiki-color')||'#8fd0db'; } catch(e){ return '#8fd0db'; } })() };
+  state = { mode: '2d', selectedId: null, ready: false, anim: false, tick: 0, fullPage: false, query: '', searchFocus: false, searchIdx: 0, menuNodeId: null, linkMenu: null, layout: { pane: 'p1' }, panes: { p1: { tabs: [], selectedKey: null } }, activePane: 'p1', tabNode: {}, tabMenu: null, barMenu: null, metaPop: null, splitSubOpen: false, renderMode: (function(){ try { var r = sessionStorage.getItem('kg-render'); if (['bitmap','webgl','live'].indexOf(r) >= 0) return r; return sessionStorage.getItem('kg-bitmap') === '0' ? 'live' : 'bitmap'; } catch(e){ return 'bitmap'; } })(), bitmapNotice: false, legendHidden: (typeof window !== 'undefined' && window.innerWidth < 700), minimapForce: (typeof window !== 'undefined' && window.innerWidth < 700) ? false : undefined, splitHover: false, hoverTab: null, closeHover: null, tabsCollapsed: {}, lockTabW: {}, winW: (typeof window !== 'undefined' ? window.innerWidth : 1280), winH: (typeof window !== 'undefined' ? window.innerHeight : 800), searchExpanded: false, headerH: 64, sidebarW: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-w')); return (v && v >= 320) ? v : 452; } catch(e){ return 452; } })(), mdConfig: this.loadMdConfig(), mdConfigOpen: false, mdCfgExpanded: {}, showTree: true, showWiki: true, menuOpen: false, hoverId: null, dragging: false, dockPreview: null, undockLeft: null, undockTop: null, dock: (function(){ try { var d = sessionStorage.getItem('kg-dock'); return ['right','left','bottom','undock'].indexOf(d) >= 0 ? d : 'right'; } catch(e){ return 'right'; } })(), sidebarH: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-h')); return (v && v >= 200) ? v : Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.46); } catch(e){ return 360; } })(), bootMsg: 'fetching the garden \u2026', nodeSizeMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-node-size')); return (v>0)?v:1; } catch(e){ return 1; } })(), edgeWidthMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-edge-width')); return (v>0)?v:1; } catch(e){ return 1; } })(), nodeSizeByDegree: (function(){ try { return sessionStorage.getItem('kg-node-degree') !== '0'; } catch(e){ return true; } })(), nodeColorMode: (function(){ try { return sessionStorage.getItem('kg-node-color')||'category'; } catch(e){ return 'category'; } })(), treeEdgeColor: (function(){ try { return sessionStorage.getItem('kg-tree-color')||'#d8a942'; } catch(e){ return '#d8a942'; } })(), wikiEdgeColor: (function(){ try { return sessionStorage.getItem('kg-wiki-color')||'#8fd0db'; } catch(e){ return '#8fd0db'; } })() };
 
   MD_CONFIG = [
     { key: 'math', label: 'LaTeX math ($…$)', ex: 'Mass–energy: $E = mc^2$' },
@@ -1656,7 +1665,7 @@ class Component extends DCLogic {
         .enableNodeDrag(false)
         .onNodeHover(() => {})
         .onBackgroundClick((ev) => this.onBgClick(ev))
-        .linkVisibility(() => !this._bitmapOn())
+        .linkVisibility((l) => (this._bitmapOn() ? false : (this._glOn() ? (this.isHot(l) || this.isPathHot(l)) : true)))
         .onRenderFramePre((ctx) => this.drawCachePre(ctx))
         .cooldownTicks(window.GARDEN_STATIC ? 0 : 160);
       G.d3VelocityDecay(0.4);
@@ -1710,14 +1719,27 @@ class Component extends DCLogic {
   // an offscreen canvas covering ~2x the viewport; each frame then blits that bitmap and only
   // the "live" nodes (root, anchor, hover, glow) draw on top. Pan = cheap; zoom shows the
   // scaled bitmap until a throttled re-render sharpens it.
-  _bitmapOn() { return this.isHuge() && this._engineIdle !== false && !this._egg && !this._drag; }
+  // Bitmap engages automatically on huge graphs, or at ANY size once the user explicitly
+  // picked it in the controls menu (kg-render is only written by that menu action).
+  _bitmapChosen() { try { return sessionStorage.getItem('kg-render') === 'bitmap'; } catch (e) { return false; } }
+  _bitmapOn() { return (this.state.renderMode || 'bitmap') === 'bitmap' && (this.isHuge() || this._bitmapChosen()) && this._engineIdle !== false && !this._egg && !this._drag; }
+  // WebGL mode: nodes+links live in GPU buffers (rebuilt only when the structure changes) and
+  // are re-rendered every frame at the current camera — crisp at any zoom, no cache staleness.
+  _glOn() { return (this.state.renderMode || 'bitmap') === 'webgl' && this._engineIdle !== false && !this._egg && !this._drag; }
+  _cachedOn() { return this._bitmapOn() || this._glOn(); }
   markGraphDirty = () => { this._bmDirty = true; };
   _liveNode(n) {
     return n.id === this.hoverId || n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)
       || this.isAnchored(n.id) || n.id === this.glowNodeId;
   }
   drawCachePre(ctx) {
+    if (this._glOn()) { this._glFrame(ctx); return; }
     if (!this._bitmapOn()) return;
+    // First time bitmap rendering engages: let the user know (dismissable toast, once per session).
+    if (!this._bmNoticed) {
+      this._bmNoticed = true;
+      try { if (sessionStorage.getItem('kg-bitmap-seen') !== '1') { sessionStorage.setItem('kg-bitmap-seen', '1'); setTimeout(() => this.setState({ bitmapNotice: true }), 0); setTimeout(() => this.setState({ bitmapNotice: false }), 9000); } } catch (e) {}
+    }
     const el = this.graphEl;
     const zoom = this.graph.zoom() || 1;
     const c = this._bmCache;
@@ -1729,6 +1751,111 @@ class Component extends DCLogic {
     if (stale && now - (this._bmBuiltT || 0) > 220) this.rebuildBitmap(zoom);
     const cc = this._bmCache;
     if (cc) ctx.drawImage(cc.canvas, cc.gx, cc.gy, cc.gw, cc.gh);
+  }
+  // ---- WebGL renderer -------------------------------------------------------------------
+  _colVec(c, a) {
+    a = a == null ? 1 : a;
+    const cache = this._colCache || (this._colCache = {});
+    let v = cache[c];
+    if (!v) {
+      let r = 0.5, g = 0.5, b = 0.5, al = 1;
+      const s = String(c || '#888');
+      if (s[0] === '#') {
+        let h = s.slice(1);
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        r = parseInt(h.slice(0, 2), 16) / 255; g = parseInt(h.slice(2, 4), 16) / 255; b = parseInt(h.slice(4, 6), 16) / 255;
+        if (h.length >= 8) al = parseInt(h.slice(6, 8), 16) / 255;
+      } else {
+        const m = s.match(/rgba?\(([^)]+)\)/);
+        if (m) { const p = m[1].split(',').map(parseFloat); r = p[0] / 255; g = p[1] / 255; b = p[2] / 255; al = p.length > 3 ? p[3] : 1; }
+      }
+      v = cache[c] = [r, g, b, al];
+    }
+    return [v[0], v[1], v[2], v[3] * a];
+  }
+  _glInit() {
+    if (this._gl) return this._gl;
+    if (this._glFailed) return null;
+    try {
+      const cv = document.createElement('canvas');
+      const gl = cv.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true });
+      if (!gl) { this._glFailed = true; return null; }
+      const mk = (type, src) => { const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; };
+      const prog = (vs, fs) => { const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; };
+      const proj = 'uniform vec4 uRect; vec4 ndc(vec2 p){ return vec4((p.x-uRect.x)/uRect.z*2.0-1.0, 1.0-(p.y-uRect.y)/uRect.w*2.0, 0.0, 1.0); }';
+      this._glPt = prog(
+        proj + 'attribute vec2 aPos; attribute float aSize; attribute vec4 aCol; uniform float uScale; varying vec4 vCol; void main(){ gl_Position=ndc(aPos); gl_PointSize=max(1.0, aSize*uScale); vCol=aCol; }',
+        'precision mediump float; varying vec4 vCol; void main(){ vec2 d=gl_PointCoord-vec2(0.5); if(dot(d,d)>0.25) discard; gl_FragColor=vec4(vCol.rgb*vCol.a, vCol.a); }');
+      this._glLn = prog(
+        proj + 'attribute vec2 aPos; attribute vec4 aCol; varying vec4 vCol; void main(){ gl_Position=ndc(aPos); vCol=aCol; }',
+        'precision mediump float; varying vec4 vCol; void main(){ gl_FragColor=vec4(vCol.rgb*vCol.a, vCol.a); }');
+      this._glBufs = { lp: gl.createBuffer(), lc: gl.createBuffer(), np: gl.createBuffer(), ns: gl.createBuffer(), nc: gl.createBuffer() };
+      this._glCanvas = cv;
+      this._gl = gl;
+      return gl;
+    } catch (e) { this._glFailed = true; this._gl = null; return null; }
+  }
+  _glBuild() {
+    const gl = this._gl;
+    const data = this.graph.graphData();
+    const lp = [], lc = [], np = [], ns = [], nc = [];
+    for (const l of data.links) {
+      const s = (l.source && l.source.id != null) ? l.source : this.nodeById[l.source];
+      const t = (l.target && l.target.id != null) ? l.target : this.nodeById[l.target];
+      if (!s || !t || s.x == null || t.x == null) continue;
+      if (this.isHot(l) || this.isPathHot(l)) continue;   // hot edges stay live on the 2d canvas
+      const c = this._colVec(this.linkColorFn(l));
+      lp.push(s.x, s.y, t.x, t.y);
+      lc.push(c[0], c[1], c[2], c[3], c[0], c[1], c[2], c[3]);
+    }
+    for (const n of data.nodes) {
+      if (n.x == null || this._liveNode(n)) continue;      // live nodes draw on top each frame
+      const c = this._colVec(n.col || this.color(n), this._dimAlpha(n) < 1 ? 0.14 : 1);
+      np.push(n.x, n.y); ns.push(this.nodeRadius(n)); nc.push(c[0], c[1], c[2], c[3]);
+    }
+    const up = (buf, arr) => { gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW); };
+    up(this._glBufs.lp, lp); up(this._glBufs.lc, lc);
+    up(this._glBufs.np, np); up(this._glBufs.ns, ns); up(this._glBufs.nc, nc);
+    this._glCounts = { lines: lp.length / 2, pts: np.length / 2 };
+    this._bmDirty = false;
+  }
+  _glFrame(ctx) {
+    const gl = this._glInit();
+    if (!gl) { if (this.state.renderMode === 'webgl') this.setState({ renderMode: 'bitmap' }); return; }   // no WebGL → fall back
+    const el = this.graphEl; if (!el || !this.graph) return;
+    const w = el.clientWidth, h = el.clientHeight; if (!w || !h) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cv = this._glCanvas;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    gl.viewport(0, 0, cv.width, cv.height);
+    if (this._bmDirty || !this._glCounts) this._glBuild();
+    const zoom = this.graph.zoom() || 1;
+    let tl, br; try { tl = this.graph.screen2GraphCoords(0, 0); br = this.graph.screen2GraphCoords(w, h); } catch (e) { return; }
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    const rect = [tl.x, tl.y, br.x - tl.x, br.y - tl.y];
+    const attr = (p, name, buf, size) => { const a = gl.getAttribLocation(p, name); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0); };
+    const cnt = this._glCounts || { lines: 0, pts: 0 };
+    if (cnt.lines) {
+      gl.useProgram(this._glLn);
+      gl.uniform4fv(gl.getUniformLocation(this._glLn, 'uRect'), rect);
+      attr(this._glLn, 'aPos', this._glBufs.lp, 2);
+      attr(this._glLn, 'aCol', this._glBufs.lc, 4);
+      gl.drawArrays(gl.LINES, 0, cnt.lines);
+    }
+    if (cnt.pts) {
+      gl.useProgram(this._glPt);
+      gl.uniform4fv(gl.getUniformLocation(this._glPt, 'uRect'), rect);
+      gl.uniform1f(gl.getUniformLocation(this._glPt, 'uScale'), 2 * zoom * dpr);   // radius (graph units) → point size (device px)
+      attr(this._glPt, 'aPos', this._glBufs.np, 2);
+      attr(this._glPt, 'aSize', this._glBufs.ns, 1);
+      attr(this._glPt, 'aCol', this._glBufs.nc, 4);
+      gl.drawArrays(gl.POINTS, 0, cnt.pts);
+    }
+    // Blit into the force-graph canvas mapped to the exact viewport rect (graph coords).
+    ctx.drawImage(cv, tl.x, tl.y, br.x - tl.x, br.y - tl.y);
   }
   rebuildBitmap(zoom) {
     const el = this.graphEl; if (!el || !this.graph) return;
@@ -1802,8 +1929,8 @@ class Component extends DCLogic {
     return this._vb;
   }
   draw2d(n, ctx, scale) {
-    // Bitmap mode: everything static is already blitted by drawCachePre — only live nodes draw.
-    if (this._bitmapOn() && !this._liveNode(n)) return;
+    // Bitmap/WebGL mode: everything static is already drawn by drawCachePre — only live nodes draw.
+    if (this._cachedOn() && !this._liveNode(n)) return;
     // Huge vaults: cull nodes outside the viewport before any canvas work.
     if (this.isHuge()) {
       const vb = this.viewBounds();
@@ -4902,6 +5029,13 @@ class Component extends DCLogic {
       closeStats: () => this.setState({ statsOpen: false }),
       stats: this.state.statsOpen ? this.computeStats() : null,
       menuExportPng: () => { this.setState({ menuOpen: false }); this.exportGraphPNG(); },
+      // Renderer choice: bitmap (cached image, fast) → WebGL (GPU, fastest) → original (live 2d).
+      bitmapModeOn: (this.state.renderMode || 'bitmap') !== 'live',
+      bitmapToggleLabel: (this.state.renderMode || 'bitmap') === 'bitmap' ? '▣ Rendering: bitmap (fast)' : ((this.state.renderMode === 'webgl') ? '⬢ Rendering: WebGL (fastest)' : '□ Rendering: original (live)'),
+      menuToggleBitmap: () => { const order = ['bitmap', 'webgl', 'live']; const cur = order.indexOf(this.state.renderMode || 'bitmap'); const next = order[(cur + 1) % order.length]; this.setState({ renderMode: next, bitmapNotice: false }, () => { this.markGraphDirty(); this._kickGraph(); try { sessionStorage.setItem('kg-render', next); } catch (e) {} }); },
+      bitmapNoticeShow: !!this.state.bitmapNotice,
+      bitmapNoticeStyle: { position: 'fixed', left: '50%', bottom: '26px', transform: 'translateX(-50%)', zIndex: 90, display: 'flex', alignItems: 'center', gap: '12px', maxWidth: 'min(92vw, 560px)', background: '#16120c', border: '1px solid #4a3823', borderRadius: '9px', padding: '10px 14px', boxShadow: '0 18px 40px -14px rgba(0,0,0,0.85)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.04em', color: '#c9bca6', lineHeight: 1.55 },
+      bitmapNoticeClose: () => this.setState({ bitmapNotice: false }),
       closeShortcuts: () => this.setState({ shortcutsOpen: false }),
       openShortcuts: () => this.setState({ shortcutsOpen: true }),
       shortcutRows: [
