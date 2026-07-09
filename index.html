@@ -1680,7 +1680,7 @@ class Component extends DCLogic {
         try { G.d3Force('link').distance(34); } catch (e) {}
       }
       G.onEngineTick(() => { this._engineIdle = false; this.runCollide(); });
-      G.onEngineStop(() => { this._engineIdle = true; this.markGraphDirty(); if (!this._fitDone) { this._fitDone = true; this.fitView(); } setTimeout(() => this.markReady(), 900); });
+      G.onEngineStop(() => { this._engineIdle = true; this._kickGraph(); if (!this._fitDone) { this._fitDone = true; this.fitView(); } setTimeout(() => this.markReady(), 900); });
       this.graph = G;
   }
 
@@ -4031,7 +4031,7 @@ class Component extends DCLogic {
     return { total: nodes.length, wikiLinks, treeLinks, orphans: orphansAll.length, hubs, backs, orphanList, tags };
   }
   toggleTree = () => this.setState((s) => ({ showTree: !s.showTree }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });  toggleWiki = () => this.setState((s) => ({ showWiki: !s.showWiki }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });
-  _kickGraph = () => { this.markGraphDirty(); if (!this.graph) return; try { this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); if (this.graph.linkDirectionalParticleColor) this.graph.linkDirectionalParticleColor(this.graph.linkDirectionalParticleColor()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
+  _kickGraph = () => { this.markGraphDirty(); if (!this.graph) return; try { this.graph.linkVisibility(this.graph.linkVisibility()); this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); if (this.graph.linkDirectionalParticleColor) this.graph.linkDirectionalParticleColor(this.graph.linkDirectionalParticleColor()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
   setNodeSize = (e) => { const v = parseFloat(e.target.value); this.setState({ nodeSizeMul: v }); try { sessionStorage.setItem('kg-node-size', v); } catch (_) {} this._kickGraph(); };
   toggleNodeDegree = () => { const next = !(this.state.nodeSizeByDegree !== false); this.setState({ nodeSizeByDegree: next }); try { sessionStorage.setItem('kg-node-degree', next ? '1' : '0'); } catch (_) {} this._kickGraph(); };
   setEdgeWidth = (e) => { const v = parseFloat(e.target.value); this.setState({ edgeWidthMul: v }); try { sessionStorage.setItem('kg-edge-width', v); } catch (_) {} this._kickGraph(); };
