@@ -1616,10 +1616,17 @@ class Component extends DCLogic {
         .enableNodeDrag(false)
         .onNodeHover(() => {})
         .onBackgroundClick((ev) => this.onBgClick(ev))
-        .cooldownTicks(160);
+        .cooldownTicks(window.GARDEN_STATIC ? 0 : 160);
       G.d3VelocityDecay(0.4);
-      G.d3Force('charge').strength(-55);
-      try { G.d3Force('link').distance(34); } catch (e) {}
+      if (window.GARDEN_STATIC) {
+        // Precomputed static layout (build-time): nodes arrive with baked x/y. Null out every
+        // force so nothing ever moves them — reheats (drag, expand/collapse, egg) become no-ops
+        // on position. Expand/collapse still works: nodes just appear/disappear in place.
+        try { G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null); } catch (e) {}
+      } else {
+        G.d3Force('charge').strength(-55);
+        try { G.d3Force('link').distance(34); } catch (e) {}
+      }
       G.onEngineTick(() => this.runCollide());
       G.onEngineStop(() => { if (!this._fitDone) { this._fitDone = true; this.fitView(); } setTimeout(() => this.markReady(), 900); });
       this.graph = G;

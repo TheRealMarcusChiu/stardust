@@ -443,7 +443,116 @@ const nodes = survivors.map((k) => {
   };
 });
 
-fs.writeFileSync(OUT, 'window.GARDEN_NODES = ' + JSON.stringify(nodes) + ';\n');
+const staticFlag = staticBanner();   // runs the layout FIRST so x/y are baked into the JSON below
+fs.writeFileSync(OUT, 'window.GARDEN_NODES = ' + JSON.stringify(nodes) + ';\n' + staticFlag);
+
+/* ──── optional precomputed static layout (config.yml → layout.precompute) ────
+ * Runs the same force simulation the browser would (charge −55, link distance
+ * 34, velocity decay 0.4, centering) once at build time, over the FULL graph
+ * (tree edges + wikilinks), and bakes x/y into each node. The app detects
+ * window.GARDEN_STATIC and skips the live simulation entirely. Every node —
+ * expanded or collapsed — has a permanent home, so expand/collapse stays fully
+ * enabled and simply reveals nodes in place. */
+function staticBanner() {
+  let cfg = {};
+  try { cfg = parseYaml(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8')); } catch (e) {}
+  const lay = cfg.layout || {};
+  const on = String(lay.precompute) === 'true';
+  if (!on) return '';
+  const iterations = Math.max(50, parseInt(lay.iterations, 10) || 300);
+  const t0 = Date.now();
+  computeStaticLayout(nodes, iterations);
+  console.log(`Precomputed static layout: ${nodes.length} nodes, ${iterations} ticks in ${Date.now() - t0}ms.`);
+  return 'window.GARDEN_STATIC = true;\n';
+}
+
+function computeStaticLayout(ns, ticks) {
+  const byId = {}; ns.forEach((n) => { byId[n.id] = n; });
+  // Same edge set the app renders: child→parent tree links + resolved wikilinks.
+  const links = [];
+  ns.forEach((n) => {
+    if (n.parent != null && byId[n.parent]) links.push([n.id, n.parent]);
+    (n.links || []).forEach((t) => { if (byId[t]) links.push([n.id, t]); });
+  });
+  // Degree counts (d3's default link strength = 1 / min(deg(a), deg(b))).
+  const deg = {}; links.forEach(([a, b]) => { deg[a] = (deg[a] || 0) + 1; deg[b] = (deg[b] || 0) + 1; });
+  // Phyllotaxis initial placement (d3's default).
+  ns.forEach((n, i) => { const r = 12 * Math.sqrt(0.5 + i), a = i * 2.3999632297286533; n.x = r * Math.cos(a); n.y = r * Math.sin(a); n.vx = 0; n.vy = 0; });
+  const CHARGE = -55, LINK_DIST = 34, VDECAY = 0.6;   // v *= 0.6 ≡ d3VelocityDecay(0.4)
+  let alpha = 1;
+  const alphaDecay = 1 - Math.pow(0.001, 1 / ticks);
+  for (let t = 0; t < ticks; t++) {
+    alpha += (0 - alpha) * alphaDecay;
+    // --- charge via Barnes-Hut quadtree (theta = 0.81) ---
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    ns.forEach((n) => { if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x; if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y; });
+    const size = Math.max(maxX - minX, maxY - minY) || 1;
+    const root = { x0: minX, y0: minY, s: size, mass: 0, cx: 0, cy: 0, node: null, kids: null };
+    const insert = (q, n) => {
+      while (true) {
+        q.mass++; q.cx += (n.x - q.cx) / q.mass; q.cy += (n.y - q.cy) / q.mass;
+        if (q.node === null && q.kids === null) { q.node = n; return; }
+        if (q.kids === null) {
+          const prev = q.node; q.node = null; q.kids = [null, null, null, null];
+          const place = (m) => {
+            const h = q.s / 2, ix = m.x >= q.x0 + h ? 1 : 0, iy = m.y >= q.y0 + h ? 1 : 0, k = iy * 2 + ix;
+            if (!q.kids[k]) q.kids[k] = { x0: q.x0 + ix * h, y0: q.y0 + iy * h, s: h, mass: 0, cx: 0, cy: 0, node: null, kids: null };
+            return q.kids[k];
+          };
+          if (q.s < 1e-6) { q.node = prev; return; }   // coincident points — stop subdividing
+          const qp = place(prev); qp.mass++; qp.cx = prev.x; qp.cy = prev.y; qp.node = prev;
+          q = place(n); continue;
+        }
+        const h = q.s / 2, ix = n.x >= q.x0 + h ? 1 : 0, iy = n.y >= q.y0 + h ? 1 : 0, k = iy * 2 + ix;
+        if (!q.kids[k]) q.kids[k] = { x0: q.x0 + ix * h, y0: q.y0 + iy * h, s: h, mass: 0, cx: 0, cy: 0, node: null, kids: null };
+        q = q.kids[k];
+      }
+    };
+    ns.forEach((n) => insert(root, n));
+    const applyCharge = (n) => {
+      const stack = [root];
+      while (stack.length) {
+        const q = stack.pop();
+        if (!q || q.mass === 0) continue;
+        let dx = q.cx - n.x, dy = q.cy - n.y;
+        let d2 = dx * dx + dy * dy;
+        if (q.kids && (q.s * q.s) / d2 < 0.81) {
+          if (d2 < 1e-4) continue;
+          const w = CHARGE * q.mass * alpha / d2;
+          n.vx += dx * w; n.vy += dy * w;
+        } else if (q.kids) {
+          stack.push(q.kids[0], q.kids[1], q.kids[2], q.kids[3]);
+        } else if (q.node && q.node !== n) {
+          if (d2 < 1e-4) { dx = (Math.random() - 0.5) * 1e-2; dy = (Math.random() - 0.5) * 1e-2; d2 = dx * dx + dy * dy; }
+          const w = CHARGE * alpha / d2;
+          n.vx += dx * w; n.vy += dy * w;
+        }
+      }
+    };
+    ns.forEach(applyCharge);
+    // --- link springs (d3 defaults: strength 1/min(deg), bias by degree) ---
+    links.forEach(([ai, bi]) => {
+      const a = byId[ai], b = byId[bi];
+      let dx = (b.x + b.vx) - (a.x + a.vx), dy = (b.y + b.vy) - (a.y + a.vy);
+      let l = Math.sqrt(dx * dx + dy * dy) || 1e-6;
+      const strength = 1 / Math.min(deg[ai] || 1, deg[bi] || 1);
+      const k = (l - LINK_DIST) / l * alpha * strength;
+      const bias = (deg[ai] || 1) / (((deg[ai] || 1)) + ((deg[bi] || 1)));
+      b.vx -= dx * k * bias; b.vy -= dy * k * bias;
+      a.vx += dx * k * (1 - bias); a.vy += dy * k * (1 - bias);
+    });
+    // --- centering (translate mean to 0,0) + integrate ---
+    let mx = 0, my = 0;
+    ns.forEach((n) => { mx += n.x; my += n.y; });
+    mx /= ns.length; my /= ns.length;
+    ns.forEach((n) => {
+      n.x -= mx; n.y -= my;
+      n.vx *= VDECAY; n.vy *= VDECAY;
+      n.x += n.vx; n.y += n.vy;
+    });
+  }
+  ns.forEach((n) => { n.x = Math.round(n.x * 10) / 10; n.y = Math.round(n.y * 10) / 10; delete n.vx; delete n.vy; });
+}
 
 /* ---- build-time search corpus: rendered plaintext + headings per note ---- */
 const searchDocs = survivors.map((k) => {

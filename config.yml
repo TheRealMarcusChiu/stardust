@@ -35,3 +35,19 @@ giscus:
   category: "General"
   category_id: "DIC_kwDOSxZkzc4C-tDZ"
   theme: "transparent_dark"
+
+# Graph layout. When a vault grows large, the live force simulation gets slow
+# and "jiggly" — set `precompute: true` and the build runs the simulation once
+# (same forces as the browser) and bakes every node's x/y into garden-data.js.
+# The 2D canvas then renders those static positions instantly: no simulation
+# runs in the browser at all.
+#
+# Expanding / collapsing children and descendants stays fully enabled: the
+# layout is computed for the WHOLE graph, so each node has a permanent home and
+# expand/collapse simply shows or hides nodes in place (no reflow, no drift).
+# Dragging nodes still works too — a dragged node just stays where you drop it.
+layout:
+  precompute: false
+  # Simulation ticks used at build time (more = more settled; 300 ≈ what the
+  # browser would run).
+  iterations: 300
