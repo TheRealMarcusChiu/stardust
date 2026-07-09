@@ -326,7 +326,16 @@ for (const dk of dirKeys) {
  * re-parent every top-level entry beneath it. Like other synthesized notes,
  * its body becomes a rendered list of its children (filled below).          */
 const topKeys = Object.keys(recs).filter((k) => recs[k].parentKey === null);
-if (topKeys.length > 1) {
+const multiVault = (function () {
+  try {
+    const cfgPath = path.join(__dirname, 'config.yml');
+    if (fs.existsSync(cfgPath)) { const c = parseYaml(fs.readFileSync(cfgPath, 'utf8')); return String((c.vaults || {}).multi) === 'true'; }
+  } catch (e) {}
+  return false;
+})();
+if (topKeys.length > 1 && multiVault) {
+  console.log(`Multiple vaults: ${topKeys.length} top-level entries kept as independent gardens (vaults.multi: true).`);
+} else if (topKeys.length > 1) {
   let rootTitle = 'vault';
   try {
     const cfgPath = path.join(__dirname, 'config.yml');
@@ -444,7 +453,14 @@ const nodes = survivors.map((k) => {
 });
 
 const staticFlag = staticBanner();   // runs the layout FIRST so x/y are baked into the JSON below
-fs.writeFileSync(OUT, 'window.GARDEN_NODES = ' + JSON.stringify(nodes) + ';\n' + staticFlag);
+// Vault roots (post-private-filtering): every top-level note. The app shows a switcher when >1.
+const vaultRoots = survivors
+  .filter((k) => recs[k].parentKey === null)
+  .map((k) => ({ id: idByKey[k], name: recs[k].title }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+const vaultsLine = 'window.GARDEN_VAULTS = ' + JSON.stringify(vaultRoots) + ';\n';
+fs.writeFileSync(OUT, 'window.GARDEN_NODES = ' + JSON.stringify(nodes) + ';\n' + vaultsLine + staticFlag);
+if (vaultRoots.length > 1) console.log(`Wrote ${vaultRoots.length} vault roots (switcher enabled).`);
 
 /* ──── optional precomputed static layout (config.yml → layout.precompute) ────
  * Runs the same force simulation the browser would (charge −55, link distance
