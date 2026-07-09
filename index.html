@@ -4,7 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!--KG:title--><title>/var/log</title><!--/KG:title-->
-<!--KG:og--><!--/KG:og-->
+<!--KG:og--><meta property="og:type" content="website">
+<meta property="og:site_name" content="/var/log">
+<meta property="og:title" content="/var/log">
+<meta property="og:description" content="knowledge garden">
+<meta property="og:url" content="https://git.marcuschiu.com/var-log/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="/var/log">
+<meta name="twitter:description" content="knowledge garden"><!--/KG:og-->
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <script src="./support.js"></script>
 </head>
@@ -149,6 +156,22 @@
     </div>
 
     <div style="display: {{ rightClusterDisplay }}; align-items: center; gap: 12px; flex-shrink: 0;">
+      <sc-if value="{{ vaultsShow }}" hint-placeholder-val="{{ false }}">
+        <div data-vaultmenu="1" style="position: relative; flex-shrink: 0;">
+          <button type="button" onClick="{{ toggleVaultMenu }}" title="Switch vault" style="box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; max-width: 180px; height: 36px; padding: 0 10px; border: 1px solid #29221a; border-radius: 7px; background: #14100b; color: #cdbfa6; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.04em; transition: all .2s;" style-hover="border-color: #d8a942; background: #1b150d; color: #f4cf6a; box-shadow: 0 0 0 1px rgba(216,169,66,0.25);">
+            <span style="flex: 0 0 auto; color: #b78f3a; font-size: 12px;">⧉</span>
+            <span style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ vaultName }}</span>
+            <span style="flex: 0 0 auto; font-size: 9px; color: #8c8170;">▾</span>
+          </button>
+          <sc-if value="{{ vaultMenuOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="gx-scroll" style="position: absolute; top: calc(100% + 6px); right: 0; left: auto; min-width: 190px; max-width: 260px; max-height: 320px; overflow-y: auto; background: #16120c; border: 1px solid #2a2218; border-radius: 8px; padding: 5px; display: flex; flex-direction: column; gap: 2px; box-shadow: 0 18px 40px -18px rgba(0,0,0,0.85); z-index: 70;">
+              <sc-for list="{{ vaultItems }}" as="v" hint-placeholder-count="2">
+                <button type="button" onClick="{{ v.onClick }}" style="{{ v.style }}" style-hover="background: #2c2316; color: #f4cf6a; box-shadow: inset 2px 0 0 #d8a942;">{{ v.name }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
       <button type="button" onClick="{{ toggleSearchExpand }}" title="Search" style="{{ searchIconBtnStyle }}" style-hover="background: #241c12; border-color: #d8a942; color: #f4cf6a; box-shadow: 0 0 0 1px rgba(216,169,66,0.25);"><span style="font-size: 17px; line-height: 1;">⌕</span></button>
       <div data-pins="1" style="position: relative; flex-shrink: 0;">
         <button type="button" onClick="{{ togglePins }}" onKeyDown="{{ onPinKey }}" title="Pinned notes" style="box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid #29221a; border-radius: 7px; background: #14100b; color: {{ pinBtnColor }}; cursor: pointer; transition: all .2s;" style-hover="border-color: #d8a942; background: #1b150d; color: #f4cf6a; box-shadow: 0 0 0 1px rgba(216,169,66,0.25);"><span style="font-size: 15px; line-height: 1;">{{ pinBtnIcon }}</span></button>
@@ -1416,10 +1439,17 @@ class Component extends DCLogic {
     this.nodeById = {};
     raw.forEach((r) => { this.nodeById[r.id] = Object.assign({}, r, { name: r.title, children: [] }); });
     raw.forEach((r) => { if (r.parent && this.nodeById[r.parent]) this.nodeById[r.parent].children.push(this.nodeById[r.id]); });
-    this.rootId = (raw.find((r) => !r.parent) || raw[0] || {}).id;
+    // Vaults: every top-level (parentless) note is a potential garden root. With
+    // GARDEN_VAULTS (multi-vault build) there may be several; the switcher flips between them.
+    const roots = raw.filter((r) => !r.parent).map((r) => r.id);
+    this.vaults = (window.GARDEN_VAULTS || []).filter((v) => this.nodeById[v.id]);
+    if (!this.vaults.length) this.vaults = roots.map((id) => ({ id, name: this.nodeById[id].name }));
+    let savedVault = null;
+    try { savedVault = sessionStorage.getItem('kg-vault'); } catch (e) {}
+    this.rootId = (savedVault && this.nodeById[savedVault] && roots.indexOf(savedVault) >= 0) ? savedVault : (roots[0] || (raw[0] || {}).id);
     const setDepth = (id, d) => { const n = this.nodeById[id]; if (!n) return; n.depth = d; n.children.forEach((ch) => setDepth(ch.id, d + 1)); };
-    setDepth(this.rootId, 0);
-    this.assignColors();
+    roots.forEach((rid) => setDepth(rid, 0));   // depths for EVERY vault's subtree
+    roots.forEach((rid) => this.assignColors(rid));
     this.actingRoot = this.rootId;
     this.incoming = {};
     raw.forEach((r) => { (r.links || []).forEach((tid) => { (this.incoming[tid] = this.incoming[tid] || []).push(r.id); }); });
@@ -2203,6 +2233,24 @@ class Component extends DCLogic {
     this._suppressHistory = false;
   };
 
+  // Top-level root a node belongs to (its vault).
+  vaultRootOf(id) { let n = this.nodeById[id]; while (n && n.parent != null && this.nodeById[n.parent]) n = this.nodeById[n.parent]; return n ? n.id : null; }
+  // Switch to another vault: new root, cleared panes, fit the new tree.
+  switchVault = (rid) => {
+    this.setState({ vaultMenu: false });
+    if (!this.nodeById[rid] || rid === this.rootId) return;
+    try { sessionStorage.setItem('kg-vault', rid); } catch (e) {}
+    this.rootId = rid;
+    this.actingRoot = rid;
+    this._focusGroups = null;
+    this.assignColors(rid);
+    this.clearSelection();
+    if (this.graph) this.graph.graphData(this.getVisible());
+    this.selectNode(rid);
+    const n = this.nodeById[rid];
+    if (n && n.x != null) { this.focusNode(n, false); } else { this.waitForCoords(rid, () => { const m = this.nodeById[rid]; if (m) this.focusNode(m, false); }); }
+    setTimeout(() => this.fitView(), 400);
+  };
   // Make `id` visible in the garden so it can be anchored/centered. Handles three reasons a node
   // may be off-screen:
   //   1. It lies outside the current acting-root subtree → reset the acting root back to the
@@ -2215,6 +2263,16 @@ class Component extends DCLogic {
     const target = this.nodeById[id];
     if (!target) return false;
     let changed = false;
+    // (0) In another vault entirely → switch the garden to that vault's root first.
+    const topRoot = this.vaultRootOf(id);
+    if (topRoot != null && topRoot !== this.rootId) {
+      try { sessionStorage.setItem('kg-vault', topRoot); } catch (e) {}
+      this.rootId = topRoot;
+      this.actingRoot = topRoot;
+      this._focusGroups = null;
+      this.assignColors(topRoot);
+      changed = true;
+    }
     // (1) Outside the acting subtree: fall back to the whole-garden root.
     if (this.actingRoot != null && this.actingRoot !== this.rootId && !this.inActingSubtree(target)) {
       this.actingRoot = this.rootId;
@@ -3533,7 +3591,7 @@ class Component extends DCLogic {
   };
   menuUnmake = () => { this.setState({ menuNodeId: null }); this.collapseAll(); };
   // Close any open popup/menu when the pointer goes down outside its own container.
-  DISMISSABLE = [['navMenu', '[data-navmenu]', null], ['sideMenu', '[data-sidemenu]', false], ['sbMenu', '[data-sbmenu]', null], ['recentOpen', '[data-recent]', false], ['pinOpen', '[data-pins]', false], ['menuOpen', '[data-controlsmenu]', false], ['tabMenu', '[data-tabmenu]', null], ['barMenu', '[data-barmenu]', null], ['bgMenu', '[data-bgmenu]', null], ['miniMenu', '[data-minimenu]', null], ['legendMenu', '[data-legendmenu]', null], ['linkMenu', '[data-linkmenu]', null], ['headerMenu', '[data-headermenu]', null]];
+  DISMISSABLE = [['vaultMenu', '[data-vaultmenu]', false], ['navMenu', '[data-navmenu]', null], ['sideMenu', '[data-sidemenu]', false], ['sbMenu', '[data-sbmenu]', null], ['recentOpen', '[data-recent]', false], ['pinOpen', '[data-pins]', false], ['menuOpen', '[data-controlsmenu]', false], ['tabMenu', '[data-tabmenu]', null], ['barMenu', '[data-barmenu]', null], ['bgMenu', '[data-bgmenu]', null], ['miniMenu', '[data-minimenu]', null], ['legendMenu', '[data-legendmenu]', null], ['linkMenu', '[data-linkmenu]', null], ['headerMenu', '[data-headermenu]', null]];
   onDocDown = (e) => {
     const el = e.target;
     const outside = (sel) => !(el && el.closest && el.closest(sel));
@@ -4464,6 +4522,16 @@ class Component extends DCLogic {
             ? { position: 'relative', left: 'auto', transform: 'none', flex: '1 1 120px', minWidth: '0', width: 'auto', margin: '0 6px' }
             : { position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 'min(560px, 46vw)', zIndex: 1 })),
       brandDisplay: (compact && this.state.searchExpanded) ? 'none' : 'flex',
+      // Vault switcher (only when the build produced multiple vault roots).
+      vaultsShow: !!(this.vaults && this.vaults.length > 1) && !(compact && this.state.searchExpanded),
+      vaultName: (this.vaults && this.nodeById && this.nodeById[this.rootId]) ? this.nodeById[this.rootId].name : '',
+      vaultMenuOpen: !!this.state.vaultMenu,
+      toggleVaultMenu: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setState((s) => ({ vaultMenu: !s.vaultMenu })); },
+      vaultItems: (this.vaults || []).map((v) => ({
+        name: v.name,
+        onClick: () => this.switchVault(v.id),
+        style: Object.assign({}, menuBtn, v.id === this.rootId ? { color: '#f4cf6a', background: '#2c2316', boxShadow: 'inset 2px 0 0 #d8a942' } : null),
+      })),
       subtitleDisplay: veryNarrow ? 'none' : 'inline',
       rightClusterDisplay: (compact && this.state.searchExpanded) ? 'none' : 'flex',
       searchInputH: (compact && this.state.searchExpanded) ? '36px' : 'auto',

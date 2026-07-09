@@ -51,3 +51,12 @@ layout:
   # Simulation ticks used at build time (more = more settled; 300 ≈ what the
   # browser would run).
   iterations: 300
+
+# Multiple vaults. When `multi: true`, each top-level folder / .md directly
+# inside ./vault is treated as its OWN independent garden (own root, own
+# tree), and the header shows a vault switcher to flip between them. When
+# false (default), multiple top-level entries are tied together under one
+# synthesized root instead (see build.js). With a single top-level entry this
+# setting changes nothing.
+vaults:
+  multi: true
