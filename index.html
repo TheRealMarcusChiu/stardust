@@ -113,7 +113,7 @@
   <sc-if value="{{ bitmapNoticeShow }}" hint-placeholder-val="{{ false }}">
     <div style="{{ bitmapNoticeStyle }}">
       <span style="color: #d8a942; font-size: 14px; flex: 0 0 auto;">▣</span>
-      <span>Large graph — switched to fast bitmap rendering. You can change back to the original live rendering in the ⚙ controls menu.</span>
+      <span>{{ bitmapNoticeText }}</span>
       <button type="button" onClick="{{ bitmapNoticeClose }}" title="Dismiss" style="flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: none; border-radius: 5px; background: transparent; color: #8c8170; cursor: pointer; font-size: 11px; line-height: 1;" style-hover="color: #f0b6a3; background: #2c2115;">✕</button>
     </div>
   </sc-if>
@@ -1732,14 +1732,31 @@ class Component extends DCLogic {
     return n.id === this.hoverId || n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)
       || this.isAnchored(n.id) || n.id === this.glowNodeId;
   }
+  // Cheap WebGL support probe (cached). Used to pick the auto renderer for huge graphs.
+  _glSupported() {
+    if (this._glSup != null) return this._glSup;
+    try { const c = document.createElement('canvas'); this._glSup = !!(c.getContext('webgl') || c.getContext('experimental-webgl')); } catch (e) { this._glSup = false; }
+    return this._glSup;
+  }
+  // Auto-upgrade for huge graphs: if the user never explicitly picked a renderer, switch to
+  // WebGL when supported (bitmap otherwise) and show the once-per-session notice.
+  _autoRenderCheck() {
+    if (!this.isHuge() || this._autoRenderDone) return;
+    this._autoRenderDone = true;
+    let chosen = null; try { chosen = sessionStorage.getItem('kg-render'); } catch (e) {}
+    if (!chosen && this._glSupported() && (this.state.renderMode || 'bitmap') === 'bitmap') this.setState({ renderMode: 'webgl' }, () => { this.markGraphDirty(); this._kickGraph(); });
+    try {
+      if (sessionStorage.getItem('kg-bitmap-seen') !== '1') {
+        sessionStorage.setItem('kg-bitmap-seen', '1');
+        setTimeout(() => this.setState({ bitmapNotice: true }), 0);
+        setTimeout(() => this.setState({ bitmapNotice: false }), 9000);
+      }
+    } catch (e) {}
+  }
   drawCachePre(ctx) {
+    this._autoRenderCheck();
     if (this._glOn()) { this._glFrame(ctx); return; }
     if (!this._bitmapOn()) return;
-    // First time bitmap rendering engages: let the user know (dismissable toast, once per session).
-    if (!this._bmNoticed) {
-      this._bmNoticed = true;
-      try { if (sessionStorage.getItem('kg-bitmap-seen') !== '1') { sessionStorage.setItem('kg-bitmap-seen', '1'); setTimeout(() => this.setState({ bitmapNotice: true }), 0); setTimeout(() => this.setState({ bitmapNotice: false }), 9000); } } catch (e) {}
-    }
     const el = this.graphEl;
     const zoom = this.graph.zoom() || 1;
     const c = this._bmCache;
@@ -5034,6 +5051,9 @@ class Component extends DCLogic {
       bitmapToggleLabel: (this.state.renderMode || 'bitmap') === 'bitmap' ? '▣ Rendering: bitmap (fast)' : ((this.state.renderMode === 'webgl') ? '⬢ Rendering: WebGL (fastest)' : '□ Rendering: original (live)'),
       menuToggleBitmap: () => { const order = ['bitmap', 'webgl', 'live']; const cur = order.indexOf(this.state.renderMode || 'bitmap'); const next = order[(cur + 1) % order.length]; this.setState({ renderMode: next, bitmapNotice: false }, () => { this.markGraphDirty(); this._kickGraph(); try { sessionStorage.setItem('kg-render', next); } catch (e) {} }); },
       bitmapNoticeShow: !!this.state.bitmapNotice,
+      bitmapNoticeText: (this.state.renderMode === 'webgl')
+        ? 'Large graph — switched to WebGL rendering (fastest). You can pick bitmap or the original live rendering in the ⚙ controls menu.'
+        : 'Large graph — switched to fast bitmap rendering. You can change back to the original live rendering in the ⚙ controls menu.',
       bitmapNoticeStyle: { position: 'fixed', left: '50%', bottom: '26px', transform: 'translateX(-50%)', zIndex: 90, display: 'flex', alignItems: 'center', gap: '12px', maxWidth: 'min(92vw, 560px)', background: '#16120c', border: '1px solid #4a3823', borderRadius: '9px', padding: '10px 14px', boxShadow: '0 18px 40px -14px rgba(0,0,0,0.85)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.04em', color: '#c9bca6', lineHeight: 1.55 },
       bitmapNoticeClose: () => this.setState({ bitmapNotice: false }),
       closeShortcuts: () => this.setState({ shortcutsOpen: false }),
