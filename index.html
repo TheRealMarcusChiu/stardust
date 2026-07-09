@@ -1667,6 +1667,7 @@ class Component extends DCLogic {
         .onBackgroundClick((ev) => this.onBgClick(ev))
         .linkVisibility((l) => (this._bitmapOn() ? false : (this._glOn() ? (this.isHot(l) || this.isPathHot(l)) : true)))
         .onRenderFramePre((ctx) => this.drawCachePre(ctx))
+        .onRenderFramePost((ctx) => this.drawCachePost(ctx))
         .cooldownTicks(window.GARDEN_STATIC ? 0 : 160);
       G.d3VelocityDecay(0.4);
       if (window.GARDEN_STATIC) {
@@ -1732,6 +1733,13 @@ class Component extends DCLogic {
     return n.id === this.hoverId || n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)
       || this.isAnchored(n.id) || n.id === this.glowNodeId;
   }
+  // What the static caches (bitmap bake / GL buffers) EXCLUDE. Deliberately ignores hover:
+  // hover flips on/off without a cache rebuild, so a hovered node must stay in the cache
+  // (its enlarged live draw covers it while hovered) or it would vanish on mouse-off.
+  _cacheSkip(n) {
+    return n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)
+      || this.isAnchored(n.id) || n.id === this.glowNodeId;
+  }
   // Cheap WebGL support probe (cached). Used to pick the auto renderer for huge graphs.
   _glSupported() {
     if (this._glSup != null) return this._glSup;
@@ -1755,7 +1763,7 @@ class Component extends DCLogic {
   }
   drawCachePre(ctx) {
     this._autoRenderCheck();
-    if (this._glOn()) { this._glFrame(ctx); return; }
+    if (this._glOn()) { this._glFrame(ctx, 'lines'); return; }
     if (!this._bitmapOn()) return;
     const el = this.graphEl;
     const zoom = this.graph.zoom() || 1;
@@ -1776,7 +1784,15 @@ class Component extends DCLogic {
     let v = cache[c];
     if (!v) {
       let r = 0.5, g = 0.5, b = 0.5, al = 1;
-      const s = String(c || '#888');
+      let s = String(c || '#888');
+      // Normalize any CSS color (hsl, named, oklch\u2026) through a scratch 2d context: fillStyle
+      // reads back as #rrggbb or rgba(). Without this, non-hex colors fell back to gray.
+      if (s[0] !== '#' && !/^rgba?\(/.test(s)) {
+        try {
+          const sc = this._colCtx || (this._colCtx = document.createElement('canvas').getContext('2d'));
+          sc.fillStyle = s; s = sc.fillStyle;
+        } catch (e) {}
+      }
       if (s[0] === '#') {
         let h = s.slice(1);
         if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
@@ -1826,7 +1842,7 @@ class Component extends DCLogic {
       lc.push(c[0], c[1], c[2], c[3], c[0], c[1], c[2], c[3]);
     }
     for (const n of data.nodes) {
-      if (n.x == null || this._liveNode(n)) continue;      // live nodes draw on top each frame
+      if (n.x == null || this._cacheSkip(n)) continue;    // persistent live nodes draw on top each frame
       const c = this._colVec(n.col || this.color(n), this._dimAlpha(n) < 1 ? 0.14 : 1);
       np.push(n.x, n.y); ns.push(this.nodeRadius(n)); nc.push(c[0], c[1], c[2], c[3]);
     }
@@ -1836,7 +1852,21 @@ class Component extends DCLogic {
     this._glCounts = { lines: lp.length / 2, pts: np.length / 2 };
     this._bmDirty = false;
   }
-  _glFrame(ctx) {
+  // Post-pass: GL node circles blit AFTER force-graph's live links/particles, so hot edges
+  // and their particles travel BEHIND the node circles (same z-order as the live renderer).
+  drawCachePost(ctx) {
+    if (!this._glOn()) return;
+    this._glFrame(ctx, 'points');
+    // Re-stamp the live nodes (root, anchor, hover, glow) above the blitted static circles —
+    // the node pass drew them before this blit. Hover may still sit in the static buffer
+    // (buffers don't rebuild per-hover), so this also keeps the enlarged hover visible.
+    try {
+      const zoom = this.graph.zoom() || 1;
+      const data = this.graph.graphData();
+      for (const n of data.nodes) { if (n.x != null && this._liveNode(n)) this.draw2d(n, ctx, zoom); }
+    } catch (e) {}
+  }
+  _glFrame(ctx, phase) {
     const gl = this._glInit();
     if (!gl) { if (this.state.renderMode === 'webgl') this.setState({ renderMode: 'bitmap' }); return; }   // no WebGL → fall back
     const el = this.graphEl; if (!el || !this.graph) return;
@@ -1855,14 +1885,14 @@ class Component extends DCLogic {
     const rect = [tl.x, tl.y, br.x - tl.x, br.y - tl.y];
     const attr = (p, name, buf, size) => { const a = gl.getAttribLocation(p, name); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, size, gl.FLOAT, false, 0, 0); };
     const cnt = this._glCounts || { lines: 0, pts: 0 };
-    if (cnt.lines) {
+    if (phase === 'lines' && cnt.lines) {
       gl.useProgram(this._glLn);
       gl.uniform4fv(gl.getUniformLocation(this._glLn, 'uRect'), rect);
       attr(this._glLn, 'aPos', this._glBufs.lp, 2);
       attr(this._glLn, 'aCol', this._glBufs.lc, 4);
       gl.drawArrays(gl.LINES, 0, cnt.lines);
     }
-    if (cnt.pts) {
+    if (phase === 'points' && cnt.pts) {
       gl.useProgram(this._glPt);
       gl.uniform4fv(gl.getUniformLocation(this._glPt, 'uRect'), rect);
       gl.uniform1f(gl.getUniformLocation(this._glPt, 'uScale'), 2 * zoom * dpr);   // radius (graph units) → point size (device px)
@@ -1914,7 +1944,7 @@ class Component extends DCLogic {
     // --- nodes as squares, grouped by fill color ---
     const byColor = new Map();
     for (const n of data.nodes) {
-      if (n.x == null || this._liveNode(n)) continue;      // live nodes draw on top each frame
+      if (n.x == null || this._cacheSkip(n)) continue;    // persistent live nodes draw on top each frame
       const dim = this._dimAlpha(n) < 1;
       const col = dim ? 'dim|' + (n.col || this.color(n)) : (n.col || this.color(n));
       let arr = byColor.get(col);
