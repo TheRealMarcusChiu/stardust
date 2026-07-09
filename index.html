@@ -1442,6 +1442,11 @@ class Component extends DCLogic {
     if (!this.vaults.length) this.vaults = roots.map((id) => ({ id, name: this.nodeById[id].name }));
     let savedVault = null;
     try { savedVault = sessionStorage.getItem('kg-vault'); } catch (e) {}
+    // URL ?vault= beats the session's remembered vault (shared links land in the right garden).
+    try {
+      const vp = new URLSearchParams(window.location.search).get('vault');
+      if (vp) { const vr = roots.find((rid) => this.nodeById[rid].title === vp); if (vr) savedVault = vr; }
+    } catch (e) {}
     this.rootId = (savedVault && this.nodeById[savedVault] && roots.indexOf(savedVault) >= 0) ? savedVault : (roots[0] || (raw[0] || {}).id);
     const setDepth = (id, d) => { const n = this.nodeById[id]; if (!n) return; n.depth = d; n.children.forEach((ch) => setDepth(ch.id, d + 1)); };
     roots.forEach((rid) => setDepth(rid, 0));   // depths for EVERY vault's subtree
@@ -1530,10 +1535,15 @@ class Component extends DCLogic {
     const done = () => { this.setState({ linkCopied: true }); clearTimeout(this._linkCopiedT); this._linkCopiedT = setTimeout(() => this.setState({ linkCopied: false }), 1500); };
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => this._fallbackCopy(url, done)); else this._fallbackCopy(url, done); } catch (e) { this._fallbackCopy(url, done); }
   };
-  // Permalink URL for a node — shown as the default text of the sidebar search bar.
+  // Permalink URL for a node — shown as the default text of the sidebar search bar. In
+  // multi-vault mode it carries ?vault=<name> so shared links land in the right garden.
   _nodeUrl(id) {
     const n = this.nodeById && this.nodeById[id]; if (!n) return '';
-    const base = window.location.origin + window.location.pathname;
+    let base = window.location.origin + window.location.pathname;
+    if (this.vaults && this.vaults.length > 1) {
+      const vr = this.nodeById[this.vaultRootOf(id)];
+      if (vr) base += '?vault=' + encodeURIComponent(vr.title);
+    }
     return (id === this.rootId) ? base : (base + '#node=' + encodeURIComponent(n.title));
   }
   copyPermalink = (id) => {
@@ -2270,6 +2280,38 @@ class Component extends DCLogic {
     if (!m) return null;
     try { return decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { return m[1]; }
   }
+  // ?vault=<name> query param (multi-vault builds only).
+  urlVaultParam() {
+    try { return new URLSearchParams(window.location.search).get('vault'); } catch (e) { return null; }
+  }
+  // Resolve a URL node title to an id, preferring the vault named in ?vault= (falling back to
+  // the current vault, then any).
+  _urlNodeId(title) {
+    if (!title) return null;
+    const cands = (this.idsByTitle || {})[title] || [];
+    if (!cands.length) return null;
+    const vp = this.urlVaultParam();
+    if (vp && cands.length > 1) {
+      const v = (this.vaults || []).find((x) => x.name === vp);
+      if (v) { const same = cands.find((c) => this.vaultRootOf(c) === v.id); if (same) return same; }
+    }
+    const cur = cands.find((c) => this.vaultRootOf(c) === this.rootId);
+    return cur || cands[0];
+  }
+  // The query string to publish: keeps existing params, adds vault=<name> when multi-vault.
+  _urlSearch() {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (this.vaults && this.vaults.length > 1) {
+        const cur = this.nodeById && this.nodeById[this.rootId];
+        if (cur) p.set('vault', cur.title);
+      } else {
+        p.delete('vault');
+      }
+      const s = p.toString();
+      return s ? ('?' + s) : '';
+    } catch (e) { return window.location.search; }
+  }
   writeUrl(id) {
     if (this._suppressUrl) return;
     const n = this.nodeById ? this.nodeById[id] : null;
@@ -2277,7 +2319,7 @@ class Component extends DCLogic {
     // Reflect the anchored node in the browser tab title (resets to the base title at root).
     if (this._baseTitle == null) this._baseTitle = document.title || '/var/log';
     document.title = (n && id !== this.rootId) ? (n.name + ' · ' + this._baseTitle) : this._baseTitle;
-    const url = window.location.pathname + window.location.search + hash;
+    const url = window.location.pathname + this._urlSearch() + hash;
     if (this._lastUrl === url) return;
     const isFirst = this._lastUrl == null;
     this._lastUrl = url;
@@ -2306,8 +2348,14 @@ class Component extends DCLogic {
   }
   anchorFromUrl() {
     const title = this.urlTitleParam();
-    if (!title || !this.idByTitle) return false;
-    const id = this.idByTitle[title];
+    // A bare ?vault= (no node) still selects that vault on load.
+    if (!title) {
+      const vp = this.urlVaultParam();
+      if (vp && this.vaults && this.vaults.length > 1) { const v = this.vaults.find((x) => x.name === vp); if (v && v.id !== this.rootId) { this.switchVault(v.id); return true; } }
+      return false;
+    }
+    if (!this.idsByTitle) return false;
+    const id = this._urlNodeId(title);
     if (!id || !this.nodeById[id]) return false;
     this.navigateTo(id);
     const hp = this.urlHeadingParam();
@@ -2338,7 +2386,7 @@ class Component extends DCLogic {
   onHashChange = () => {
     const title = this.urlTitleParam();
     if (!title) { return; }
-    const id = this.idByTitle ? this.idByTitle[title] : null;
+    const id = this._urlNodeId(title);
     if (id && this.nodeById[id]) {
       if (id !== this.selectedId) this.navigateTo(id);
       const hp = this.urlHeadingParam();
@@ -2348,8 +2396,14 @@ class Component extends DCLogic {
   onPopState = () => {
     // Browser Back/Forward: re-anchor to whatever node the URL now names
     // (or the root when the hash is gone), without pushing a new entry.
+    // If the URL names another vault, flip to it first.
+    const vp = this.urlVaultParam();
+    if (vp && this.vaults && this.vaults.length > 1) {
+      const v = this.vaults.find((x) => x.name === vp);
+      if (v && v.id !== this.rootId) { this._suppressHistory = true; this.switchVault(v.id); this._suppressHistory = false; }
+    }
     const title = this.urlTitleParam();
-    const id = title && this.idByTitle ? this.idByTitle[title] : this.rootId;
+    const id = title ? this._urlNodeId(title) : this.rootId;
     if (!id || !this.nodeById[id] || id === this.selectedId) { this._lastUrl = window.location.pathname + window.location.search + (window.location.hash || ''); return; }
     this._suppressHistory = true;
     this._lastUrl = null;
