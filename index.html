@@ -4,14 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!--KG:title--><title>/var/log</title><!--/KG:title-->
-<!--KG:og--><meta property="og:type" content="website">
-<meta property="og:site_name" content="/var/log">
-<meta property="og:title" content="/var/log">
-<meta property="og:description" content="knowledge garden">
-<meta property="og:url" content="https://git.marcuschiu.com/var-log/">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="/var/log">
-<meta name="twitter:description" content="knowledge garden"><!--/KG:og-->
+<!--KG:og--><!--/KG:og-->
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <script src="./support.js"></script>
 </head>
@@ -998,6 +991,9 @@ class Component extends DCLogic {
     try { return this.graph.screen2GraphCoords(px, py); } catch (e) { return null; }
   }
   onBgClick(ev) {
+    // In huge mode the picking canvas is blank, so EVERY click reaches here — including ones the
+    // app's own pointerdown hit-test already turned into activateNode. Skip those.
+    if (Date.now() - (this._lastClickT || 0) < 250) return;
     const pt = this.clickGraphPt(ev);
     if (!pt) return;
     const nodes = this.graph.graphData().nodes;
@@ -1631,8 +1627,8 @@ class Component extends DCLogic {
         .nodeVal((n) => this.val(n))
         .linkColor((l) => this.linkColorFn(l))
         .linkWidth((l) => (this.isEdgeHovered(l) ? 3.5 : (this.isPathHot(l) ? 4 : (this.isHot(l) ? 0.8 : 0.45))) * (this.state.edgeWidthMul || 1))
-        .linkLineDash((l) => (l.type === 'wiki' ? [2, 2.5] : null))
-        .linkDirectionalParticles((l) => this.linkParticlesFn(l))
+        .linkLineDash((l) => ((l.type === 'wiki' && (this._visLinks || 0) <= this.HUGE) ? [2, 2.5] : null))
+        .linkDirectionalParticles((l) => ((this._visLinks || 0) > this.HUGE ? 0 : this.linkParticlesFn(l)))
         .linkDirectionalParticleSpeed((l) => (this.isHot(l) ? 0.0038 : 0.0024))
         .linkDirectionalParticleWidth((l) => (this.isHot(l) ? 2.4 : 1.3))
         .linkDirectionalParticleColor((l) => {
@@ -1641,7 +1637,7 @@ class Component extends DCLogic {
         })
         .nodeCanvasObjectMode(() => 'replace')
         .nodeCanvasObject((n, ctx, scale) => this.draw2d(n, ctx, scale))
-        .nodePointerAreaPaint((n, color, ctx) => { const r = this.nodeRadius(n); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill(); })
+        .nodePointerAreaPaint((n, color, ctx) => { if (this.isHuge()) return; const r = this.nodeRadius(n); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill(); })
         .onNodeClick(() => {})
         .enableNodeDrag(false)
         .onNodeHover(() => {})
@@ -1689,13 +1685,42 @@ class Component extends DCLogic {
     return false;
   }
   subtreeCount(n) { let c = 0; const w = (x) => { c++; (x.children || []).forEach(w); }; if (n) (n.children || []).forEach(w); return c; }
+  // Above this many visible nodes, rendering switches to "huge" mode: squares instead of
+  // arcs, no picking-canvas paint, no dashed links, no particles, sampled minimap.
+  HUGE = 8000;
+  isHuge() { return (this._visNodes || 0) > this.HUGE; }
+  // Current viewport in graph coords (cached per frame) — used to cull off-screen draws.
+  viewBounds() {
+    const now = performance.now();
+    if (this._vbT && now - this._vbT < 16 && this._vb) return this._vb;
+    this._vbT = now;
+    try {
+      const el = this.graphEl, tl = this.graph.screen2GraphCoords(0, 0), br = this.graph.screen2GraphCoords(el.clientWidth, el.clientHeight);
+      const m = 40 / (this.graph.zoom() || 1);   // margin so edge nodes don't pop
+      this._vb = { x0: tl.x - m, y0: tl.y - m, x1: br.x + m, y1: br.y + m };
+    } catch (e) { this._vb = null; }
+    return this._vb;
+  }
   draw2d(n, ctx, scale) {
+    // Huge vaults: cull nodes outside the viewport before any canvas work.
+    if (this.isHuge()) {
+      const vb = this.viewBounds();
+      if (vb && (n.x < vb.x0 || n.x > vb.x1 || n.y < vb.y0 || n.y > vb.y1)) return;
+    }
     const t = performance.now();
     if (this._egg && n.id === this.rootId) { this.drawBlackHole(n, ctx, scale); return; }
     if (this._egg) { ctx.beginPath(); ctx.arc(n.x, n.y, this.nodeRadius(n), 0, 2 * Math.PI); ctx.fillStyle = this.color(n); ctx.fill(); return; }
     if (this._dimAlpha(n) < 1) { const rr = this.nodeRadius(n); ctx.globalAlpha = 0.14; ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 2 * Math.PI); ctx.fillStyle = this.color(n); ctx.fill(); ctx.globalAlpha = 1; return; }
     if ((this._visNodes || 0) > 1200) {
       const hov = n.id === this.hoverId;
+      // HUGE mode: one fillRect per node (≈3-4x cheaper than arc+fill at 50k+ nodes). Root,
+      // anchor and hover keep their distinct color; everything else is a flat colored square.
+      if (this.isHuge() && !hov && n.id !== (this.actingRoot != null ? this.actingRoot : this.rootId) && !this.isAnchored(n.id)) {
+        const r = this.nodeRadius(n);
+        ctx.fillStyle = n.col || this.color(n);
+        ctx.fillRect(n.x - r, n.y - r, r * 2, r * 2);
+        return;
+      }
       const fr = this.nodeRadius(n) * (hov ? 1.6 : 1);
       ctx.beginPath(); ctx.arc(n.x, n.y, fr, 0, 2 * Math.PI);
       ctx.fillStyle = (n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)) ? this.ROOT_COLOR : (this.isAnchored(n.id) ? this.ANCHOR_COLOR : (hov ? '#ffe08a' : this.color(n)));
@@ -1830,7 +1855,8 @@ class Component extends DCLogic {
   drawMinimap() {
     const cv = this.miniEl; if (!cv || !this.graph || !this.graph.graphData) return;
     const now = performance.now();
-    if (now - (this._miniT || 0) < 60) return;   // throttle ~16fps
+    const huge = (this.graph.graphData().nodes || []).length > this.HUGE;
+    if (now - (this._miniT || 0) < (huge ? 240 : 60)) return;   // heavier throttle for huge vaults
     this._miniT = now;
     const nodes = this.graph.graphData().nodes || [];
     const force = this.state.minimapForce;
@@ -1858,13 +1884,22 @@ class Component extends DCLogic {
     this._miniXf = { sc, ox, oy };
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = 'rgba(16,13,9,0.85)'; ctx.fillRect(0, 0, W, H);
-    for (const n of nodes) {
+    // Sample the node dots so the minimap stays O(4000) regardless of vault size; specials
+    // (root/anchor) are always drawn. fillRect instead of arc — dots are ~1-2px anyway.
+    const step = Math.max(1, Math.ceil(nodes.length / 4000));
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
       if (n.x == null) continue;
-      const x = n.x * sc + ox, y = n.y * sc + oy;
       const special = (n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)) || this.isAnchored(n.id);
-      ctx.beginPath(); ctx.arc(x, y, special ? 2.6 : 1.3, 0, 2 * Math.PI);
-      ctx.fillStyle = special ? this.ROOT_COLOR : this.color(n);
-      ctx.globalAlpha = special ? 1 : 0.65; ctx.fill();
+      if (!special && (i % step)) continue;
+      const x = n.x * sc + ox, y = n.y * sc + oy;
+      if (special) {
+        ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 2 * Math.PI);
+        ctx.fillStyle = this.ROOT_COLOR; ctx.globalAlpha = 1; ctx.fill();
+      } else {
+        ctx.fillStyle = n.col || this.color(n); ctx.globalAlpha = 0.65;
+        ctx.fillRect(x - 1.3, y - 1.3, 2.6, 2.6);
+      }
     }
     ctx.globalAlpha = 1;
     try {
