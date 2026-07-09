@@ -393,15 +393,29 @@ const hashTitle = (title) => crypto.createHash('sha1').update(String(title), 'ut
 const idByKey = {};
 const keyById = {};
 survivors.forEach((k) => {
-  const id = hashTitle(recs[k].title);
+  let id = hashTitle(recs[k].title);
   if (keyById[id] && keyById[id] !== k) {
-    console.warn(`⚠  Title-hash collision: "${recs[k].title}" (${k}) and "${recs[keyById[id]].title}" (${keyById[id]}) both hash to ${id}. The latter wins; rename one note to disambiguate.`);
+    // Same title elsewhere (common across vaults): fall back to hashing the full vault-relative
+    // key, which is unique by construction — both notes keep distinct, stable ids.
+    console.log(`ℹ  Duplicate title "${recs[k].title}" (${k} vs ${keyById[id]}) — id for ${k} derived from its path instead.`);
+    id = hashTitle(k);
   }
   idByKey[k] = id;
   keyById[id] = k;
 });
+// Title → candidate keys (a title may exist in several vaults/folders). Wikilink resolution
+// prefers a candidate in the SAME vault (top-level segment) as the linking note.
+const keysByTitle = {};
+survivors.forEach((k) => { (keysByTitle[recs[k].title] = keysByTitle[recs[k].title] || []).push(k); });
+const vaultOf = (k) => (k.indexOf('/') < 0 ? k : k.slice(0, k.indexOf('/')));
+const resolveTitle = (title, srcKey) => {
+  const cands = keysByTitle[title];
+  if (!cands || !cands.length) return null;
+  if (cands.length > 1 && srcKey) { const v = vaultOf(srcKey); const same = cands.find((c) => vaultOf(c) === v); if (same) return idByKey[same]; }
+  return idByKey[cands[0]];
+};
 const idByTitle = {};
-survivors.forEach((k) => { idByTitle[recs[k].title] = idByKey[k]; });
+survivors.forEach((k) => { if (idByTitle[recs[k].title] == null) idByTitle[recs[k].title] = idByKey[k]; });
 
 /* ---- write per-note body files and metadata-only nodes ---- */
 if (!fs.existsSync(BODY_DIR)) fs.mkdirSync(BODY_DIR, { recursive: true });
@@ -445,7 +459,7 @@ const nodes = survivors.map((k) => {
     title: r.title,
     group: r.fm.group || 'root',
     tags: (r.fm.tags || []).filter((t) => t !== 'private'),
-    links: r.links.map((t) => idByTitle[t]).filter((x) => x && x !== id),
+    links: r.links.map((t) => resolveTitle(t, k)).filter((x) => x && x !== id),
     bodyRef: ref,
     created: r.fm.created || '',
     modified: r.fm.modified || '',

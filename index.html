@@ -1384,7 +1384,7 @@ class Component extends DCLogic {
     // Cascade-load notes this one transcludes (![[Note]]) so embeds can resolve.
     if (n && n.body && n.body.indexOf('![[') !== -1) {
       const re = /!\[\[([^\]#|]+)/g; let m;
-      while ((m = re.exec(n.body))) { const tid = this.idByTitle && this.idByTitle[m[1].trim()]; if (tid != null && tid !== id) this.ensureBody(tid); }
+      while ((m = re.exec(n.body))) { const tid = this.resolveTitle(m[1].trim(), id); if (tid != null && tid !== id) this.ensureBody(tid); }
     }
     if (this._mounted) { try { this.forceUpdate(); } catch (e) {} }
   }
@@ -1450,7 +1450,10 @@ class Component extends DCLogic {
     this.incoming = {};
     raw.forEach((r) => { (r.links || []).forEach((tid) => { (this.incoming[tid] = this.incoming[tid] || []).push(r.id); }); });
     this.idByTitle = {};
-    raw.forEach((r) => { this.idByTitle[r.title] = r.id; });
+    raw.forEach((r) => { if (this.idByTitle[r.title] == null) this.idByTitle[r.title] = r.id; });   // first wins (stable across builds)
+    // Duplicate titles across vaults: keep ALL candidates; resolveTitle prefers the context vault.
+    this.idsByTitle = {};
+    raw.forEach((r) => { (this.idsByTitle[r.title] = this.idsByTitle[r.title] || []).push(r.id); });
     try { this.pinned = new Set((JSON.parse(localStorage.getItem('kg-pins') || '[]') || []).filter((id) => this.nodeById[id])); } catch (e) { this.pinned = new Set(); }
     this.collapsed = new Set();
     Object.values(this.nodeById).forEach((n) => { if (n.depth >= 2 && n.children.length) this.collapsed.add(n.id); });
@@ -1471,6 +1474,7 @@ class Component extends DCLogic {
     if (this.state.showWiki !== false) nodes.forEach((n) => { (n.links || []).forEach((tid) => { if (visible.has(tid)) links.push({ source: n.id, target: tid, type: 'wiki' }); }); });
     this._visLinks = links.length;
     this._visNodes = nodes.length;
+    this._bmDirty = true;   // structure changed → bitmap cache is stale
     return { nodes, links };
   }
   // Local graph: only the selected node and everything within `hops` of it (tree parent/children +
@@ -1642,6 +1646,8 @@ class Component extends DCLogic {
         .enableNodeDrag(false)
         .onNodeHover(() => {})
         .onBackgroundClick((ev) => this.onBgClick(ev))
+        .linkVisibility(() => !this._bitmapOn())
+        .onRenderFramePre((ctx) => this.drawCachePre(ctx))
         .cooldownTicks(window.GARDEN_STATIC ? 0 : 160);
       G.d3VelocityDecay(0.4);
       if (window.GARDEN_STATIC) {
@@ -1653,8 +1659,8 @@ class Component extends DCLogic {
         G.d3Force('charge').strength(-55);
         try { G.d3Force('link').distance(34); } catch (e) {}
       }
-      G.onEngineTick(() => this.runCollide());
-      G.onEngineStop(() => { if (!this._fitDone) { this._fitDone = true; this.fitView(); } setTimeout(() => this.markReady(), 900); });
+      G.onEngineTick(() => { this._engineIdle = false; this.runCollide(); });
+      G.onEngineStop(() => { this._engineIdle = true; this.markGraphDirty(); if (!this._fitDone) { this._fitDone = true; this.fitView(); } setTimeout(() => this.markReady(), 900); });
       this.graph = G;
   }
 
@@ -1689,6 +1695,87 @@ class Component extends DCLogic {
   // arcs, no picking-canvas paint, no dashed links, no particles, sampled minimap.
   HUGE = 8000;
   isHuge() { return (this._visNodes || 0) > this.HUGE; }
+  // ---- Static bitmap cache (huge graphs) --------------------------------------------------
+  // Once the layout is at rest, the entire graph (links + node squares) is rendered ONCE into
+  // an offscreen canvas covering ~2x the viewport; each frame then blits that bitmap and only
+  // the "live" nodes (root, anchor, hover, glow) draw on top. Pan = cheap; zoom shows the
+  // scaled bitmap until a throttled re-render sharpens it.
+  _bitmapOn() { return this.isHuge() && this._engineIdle !== false && !this._egg && !this._drag; }
+  markGraphDirty = () => { this._bmDirty = true; };
+  _liveNode(n) {
+    return n.id === this.hoverId || n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)
+      || this.isAnchored(n.id) || n.id === this.glowNodeId;
+  }
+  drawCachePre(ctx) {
+    if (!this._bitmapOn()) return;
+    const el = this.graphEl;
+    const zoom = this.graph.zoom() || 1;
+    const c = this._bmCache;
+    const vb = this.viewBounds();
+    const stale = !c || this._bmDirty
+      || zoom / c.zoom > 1.35 || zoom / c.zoom < 0.7
+      || (vb && (vb.x0 < c.gx || vb.y0 < c.gy || vb.x1 > c.gx + c.gw || vb.y1 > c.gy + c.gh));
+    const now = performance.now();
+    if (stale && now - (this._bmBuiltT || 0) > 220) this.rebuildBitmap(zoom);
+    const cc = this._bmCache;
+    if (cc) ctx.drawImage(cc.canvas, cc.gx, cc.gy, cc.gw, cc.gh);
+  }
+  rebuildBitmap(zoom) {
+    const el = this.graphEl; if (!el || !this.graph) return;
+    const w = el.clientWidth, h = el.clientHeight;
+    if (!w || !h) return;
+    this._bmBuiltT = performance.now();
+    this._bmDirty = false;
+    const MARGIN = 0.5;                                   // extra half-viewport on every side
+    const gw = (w / zoom) * (1 + 2 * MARGIN), gh = (h / zoom) * (1 + 2 * MARGIN);
+    let cg; try { cg = this.graph.screen2GraphCoords(w / 2, h / 2); } catch (e) { return; }
+    const gx = cg.x - gw / 2, gy = cg.y - gh / 2;
+    // Resolution: match screen px, capped at ~8 MP so huge screens don't blow memory.
+    let px = Math.min(1.5, window.devicePixelRatio || 1) * zoom;
+    if (gw * px * gh * px > 8e6) px = Math.sqrt(8e6 / (gw * gh));
+    const cv = this._bmCanvas || (this._bmCanvas = document.createElement('canvas'));
+    cv.width = Math.max(1, Math.round(gw * px)); cv.height = Math.max(1, Math.round(gh * px));
+    const bctx = cv.getContext('2d');
+    bctx.setTransform(px, 0, 0, px, -gx * px, -gy * px);
+    const data = this.graph.graphData();
+    // --- links, batched into one stroke per (color,width) bucket ---
+    const buckets = new Map();
+    const mul = this.state.edgeWidthMul || 1;
+    for (const l of data.links) {
+      const s = (l.source && l.source.id != null) ? l.source : this.nodeById[l.source];
+      const t = (l.target && l.target.id != null) ? l.target : this.nodeById[l.target];
+      if (!s || !t || s.x == null || t.x == null) continue;
+      const color = this.linkColorFn(l);
+      const wdt = (this.isPathHot(l) ? 4 : (this.isHot(l) ? 0.8 : 0.45)) * mul;
+      const key = color + '|' + wdt;
+      let b = buckets.get(key);
+      if (!b) { b = { color, w: wdt, pts: [] }; buckets.set(key, b); }
+      b.pts.push(s.x, s.y, t.x, t.y);
+    }
+    buckets.forEach((b) => {
+      bctx.beginPath();
+      for (let i = 0; i < b.pts.length; i += 4) { bctx.moveTo(b.pts[i], b.pts[i + 1]); bctx.lineTo(b.pts[i + 2], b.pts[i + 3]); }
+      bctx.strokeStyle = b.color; bctx.lineWidth = b.w; bctx.stroke();
+    });
+    // --- nodes as squares, grouped by fill color ---
+    const byColor = new Map();
+    for (const n of data.nodes) {
+      if (n.x == null || this._liveNode(n)) continue;      // live nodes draw on top each frame
+      const dim = this._dimAlpha(n) < 1;
+      const col = dim ? 'dim|' + (n.col || this.color(n)) : (n.col || this.color(n));
+      let arr = byColor.get(col);
+      if (!arr) { arr = []; byColor.set(col, arr); }
+      arr.push(n);
+    }
+    byColor.forEach((arr, col) => {
+      const dim = col.indexOf('dim|') === 0;
+      bctx.globalAlpha = dim ? 0.14 : 1;
+      bctx.fillStyle = dim ? col.slice(4) : col;
+      for (const n of arr) { const r = this.nodeRadius(n); bctx.fillRect(n.x - r, n.y - r, r * 2, r * 2); }
+    });
+    bctx.globalAlpha = 1;
+    this._bmCache = { canvas: cv, gx, gy, gw, gh, zoom };
+  }
   // Current viewport in graph coords (cached per frame) — used to cull off-screen draws.
   viewBounds() {
     const now = performance.now();
@@ -1702,6 +1789,8 @@ class Component extends DCLogic {
     return this._vb;
   }
   draw2d(n, ctx, scale) {
+    // Bitmap mode: everything static is already blitted by drawCachePre — only live nodes draw.
+    if (this._bitmapOn() && !this._liveNode(n)) return;
     // Huge vaults: cull nodes outside the viewport before any canvas work.
     if (this.isHuge()) {
       const vb = this.viewBounds();
@@ -2268,6 +2357,18 @@ class Component extends DCLogic {
     this._suppressHistory = false;
   };
 
+  // Resolve a wikilink title to a note id. With duplicate titles (multi-vault), prefer the
+  // candidate living in the same vault as `ctxId` (the note containing the link).
+  resolveTitle(title, ctxId) {
+    const cands = (this.idsByTitle || {})[title];
+    if (!cands || !cands.length) return null;
+    if (cands.length > 1 && ctxId != null) {
+      const v = this.vaultRootOf(ctxId);
+      const same = cands.find((c) => this.vaultRootOf(c) === v);
+      if (same) return same;
+    }
+    return cands[0];
+  }
   // Top-level root a node belongs to (its vault).
   vaultRootOf(id) { let n = this.nodeById[id]; while (n && n.parent != null && this.nodeById[n.parent]) n = this.nodeById[n.parent]; return n ? n.id : null; }
   // Switch to another vault: new root, cleared panes, fit the new tree.
@@ -3008,8 +3109,10 @@ class Component extends DCLogic {
     const file = slash >= 0 ? path.slice(slash + 1) : path;
     // Resolve the note folder: try the whole dir string as a title, else its last segment.
     const seg = dirPart.slice(dirPart.lastIndexOf('/') + 1);
-    let node = (this.idByTitle[dirPart] && this.nodeById[this.idByTitle[dirPart]])
-            || (this.idByTitle[seg] && this.nodeById[this.idByTitle[seg]])
+    const imgCtx = this._renderNode && this._renderNode.id;
+    const dirId = this.resolveTitle(dirPart, imgCtx), segId = this.resolveTitle(seg, imgCtx);
+    let node = (dirId && this.nodeById[dirId])
+            || (segId && this.nodeById[segId])
             || (this._renderNode || null);
     let base;
     if (node) base = this.nodeBodiesDir(node) + '/' + encodeURIComponent(file);
@@ -3022,7 +3125,9 @@ class Component extends DCLogic {
 
   embedContent(title, blockId, heading) {
     const t = title.trim();
-    const target = (this.idByTitle[t] && this.nodeById[this.idByTitle[t]]) || Object.values(this.nodeById).find((x) => x.title === t);
+    const embedCtx = this._renderNode && this._renderNode.id;
+    const embedId = this.resolveTitle(t, embedCtx);
+    const target = (embedId && this.nodeById[embedId]) || Object.values(this.nodeById).find((x) => x.title === t);
     if (!target || !target.body) return (blockId || heading) ? null : ('[[' + t + ']]');
     let c;
     if (blockId) c = this.extractBlock(target.body, blockId);
@@ -3097,7 +3202,7 @@ class Component extends DCLogic {
       target = target.trim();
       const label = (alias || target).trim();
       if (this.nodeById[target]) return '[[' + target + '|' + label + ']]';
-      const id = this.idByTitle[target];
+      const id = this.resolveTitle(target, this._renderNode && this._renderNode.id);
       return id ? '[[' + id + '|' + label + ']]' : label;
     });
   }
@@ -3683,7 +3788,7 @@ class Component extends DCLogic {
     return { total: nodes.length, wikiLinks, treeLinks, orphans: orphansAll.length, hubs, backs, orphanList, tags };
   }
   toggleTree = () => this.setState((s) => ({ showTree: !s.showTree }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });  toggleWiki = () => this.setState((s) => ({ showWiki: !s.showWiki }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });
-  _kickGraph = () => { if (!this.graph) return; try { this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); if (this.graph.linkDirectionalParticleColor) this.graph.linkDirectionalParticleColor(this.graph.linkDirectionalParticleColor()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
+  _kickGraph = () => { this.markGraphDirty(); if (!this.graph) return; try { this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); if (this.graph.linkDirectionalParticleColor) this.graph.linkDirectionalParticleColor(this.graph.linkDirectionalParticleColor()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
   setNodeSize = (e) => { const v = parseFloat(e.target.value); this.setState({ nodeSizeMul: v }); try { sessionStorage.setItem('kg-node-size', v); } catch (_) {} this._kickGraph(); };
   toggleNodeDegree = () => { const next = !(this.state.nodeSizeByDegree !== false); this.setState({ nodeSizeByDegree: next }); try { sessionStorage.setItem('kg-node-degree', next ? '1' : '0'); } catch (_) {} this._kickGraph(); };
   setEdgeWidth = (e) => { const v = parseFloat(e.target.value); this.setState({ edgeWidthMul: v }); try { sessionStorage.setItem('kg-edge-width', v); } catch (_) {} this._kickGraph(); };
