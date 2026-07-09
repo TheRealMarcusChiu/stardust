@@ -59,4 +59,4 @@ layout:
 # synthesized root instead (see build.js). With a single top-level entry this
 # setting changes nothing.
 vaults:
-  multi: true
+  multi: false
