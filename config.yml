@@ -60,3 +60,12 @@ layout:
 # setting changes nothing.
 vaults:
   multi: false
+
+# SEO output. The build normally writes per-note Open-Graph share pages
+# (share/*.html), sitemap.xml and rss.xml. Set any of these to false to skip
+# building that artifact (existing files are left on disk — delete them by
+# hand if you no longer want them).
+seo:
+  share_pages: true
+  sitemap: true
+  rss: true

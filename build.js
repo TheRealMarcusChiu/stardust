@@ -719,10 +719,16 @@ injectConfig();
  * ───────────────────────────────────────────────────────────────────────── */
 function generateSeo() {
   const cfg = fs.existsSync(path.join(__dirname, 'config.yml')) ? parseYaml(fs.readFileSync(path.join(__dirname, 'config.yml'), 'utf8')) : {};
+  // config.yml → seo: { share_pages, sitemap, rss } — each defaults to true; set false to skip.
+  const seo = cfg.seo || {};
+  const wantShare = String(seo.share_pages) !== 'false';
+  const wantSitemap = String(seo.sitemap) !== 'false';
+  const wantRss = String(seo.rss) !== 'false';
+  if (!wantShare && !wantSitemap && !wantRss) { console.log('SEO output disabled (config.yml → seo).'); return; }
   const base = String(cfg.site_url || '').replace(/\/+$/, '');
   const siteTitle = cfg.title || 'Knowledge Garden';
   const SHARE_DIR = path.join(__dirname, 'share');
-  fs.mkdirSync(SHARE_DIR, { recursive: true });
+  if (wantShare) fs.mkdirSync(SHARE_DIR, { recursive: true });
   const slugify = (s) => (String(s || '').toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 80) || 'note');
   const seen = {};
   const pages = survivors.map((k) => {
@@ -736,6 +742,7 @@ function generateSeo() {
     const shareAbs = base ? (base + '/share/' + slug + '.html') : ('share/' + slug + '.html');
     return { title: r.title, slug, desc, modified: r.fm.modified || r.fm.created || '', appRel, appAbs, shareAbs };
   });
+  if (wantShare) {
   pages.forEach((p) => {
     const h = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
       + '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
@@ -758,13 +765,23 @@ function generateSeo() {
     fs.writeFileSync(path.join(SHARE_DIR, p.slug + '.html'), h);
   });
   console.log('Wrote ' + pages.length + ' OG share page(s) to share/.');
+  } else {
+    console.log('Skipped share/ pages (config.yml → seo.share_pages: false).');
+  }
+  if (!wantSitemap && !wantRss) return;
   if (!base) { console.warn('\u26a0  site_url is blank \u2014 skipping sitemap.xml / rss.xml (need an absolute base URL).'); return; }
   const isoDate = (d) => { const t = Date.parse(d); return isNaN(t) ? '' : new Date(t).toISOString().slice(0, 10); };
-  const sm = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
-  sm.push('  <url><loc>' + htmlEsc(base + '/') + '</loc></url>');
-  pages.forEach((p) => { const lm = isoDate(p.modified); sm.push('  <url><loc>' + htmlEsc(p.shareAbs) + '</loc>' + (lm ? '<lastmod>' + lm + '</lastmod>' : '') + '</url>'); });
-  sm.push('</urlset>\n');
-  fs.writeFileSync(path.join(__dirname, 'sitemap.xml'), sm.join('\n'));
+  if (wantSitemap) {
+    const sm = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
+    sm.push('  <url><loc>' + htmlEsc(base + '/') + '</loc></url>');
+    pages.forEach((p) => { const lm = isoDate(p.modified); sm.push('  <url><loc>' + htmlEsc(p.shareAbs) + '</loc>' + (lm ? '<lastmod>' + lm + '</lastmod>' : '') + '</url>'); });
+    sm.push('</urlset>\n');
+    fs.writeFileSync(path.join(__dirname, 'sitemap.xml'), sm.join('\n'));
+    console.log('Wrote sitemap.xml (' + (pages.length + 1) + ' urls).');
+  } else {
+    console.log('Skipped sitemap.xml (config.yml → seo.sitemap: false).');
+  }
+  if (!wantRss) { console.log('Skipped rss.xml (config.yml → seo.rss: false).'); return; }
   const recent = pages.filter((p) => !isNaN(Date.parse(p.modified))).sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified)).slice(0, 40);
   const rfc = (d) => { const t = Date.parse(d); return isNaN(t) ? '' : new Date(t).toUTCString(); };
   const rss = ['<?xml version="1.0" encoding="UTF-8"?>', '<rss version="2.0"><channel>',
@@ -773,6 +790,6 @@ function generateSeo() {
   recent.forEach((p) => { rss.push('<item><title>' + htmlEsc(p.title) + '</title><link>' + htmlEsc(p.shareAbs) + '</link><guid isPermaLink="true">' + htmlEsc(p.shareAbs) + '</guid>' + (rfc(p.modified) ? '<pubDate>' + rfc(p.modified) + '</pubDate>' : '') + '<description>' + htmlEsc(p.desc) + '</description></item>'); });
   rss.push('</channel></rss>\n');
   fs.writeFileSync(path.join(__dirname, 'rss.xml'), rss.join('\n'));
-  console.log('Wrote sitemap.xml (' + (pages.length + 1) + ' urls) and rss.xml (' + recent.length + ' items).');
+  console.log('Wrote rss.xml (' + recent.length + ' items).');
 }
 generateSeo();
