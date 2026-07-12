@@ -1189,6 +1189,9 @@ class Component extends DCLogic {
     if (!this._drag) return;
     e.stopPropagation();
     if (Math.abs(e.clientX - this._drag.sx) + Math.abs(e.clientY - this._drag.sy) > 7) this._drag.moved = true;
+    // Deep-zoom (OSD) renderer: node positions are immutable — dragging pans nothing and moves
+    // no node; a clean click (no movement) still anchors via onPointerUp.
+    if (this.state.renderMode === 'osd' && window.GARDEN_STATIC) return;
     const pt = this.evtGraphPt(e); if (!pt) return;
     const nd = this._drag.node;
     nd.fx = pt.x; nd.fy = pt.y; nd.x = pt.x; nd.y = pt.y;
@@ -1670,6 +1673,17 @@ class Component extends DCLogic {
         .onRenderFramePost((ctx) => this.drawCachePost(ctx))
         .cooldownTicks(window.GARDEN_STATIC ? 0 : 160);
       G.d3VelocityDecay(0.4);
+      // Every data swap (expand/collapse children or descendants, hide, show-all, vault switch,
+      // tree/wiki toggles) funnels through graphData(); invalidate the cached renderers
+      // (bitmap / GL buffers / OSD tiles) here once instead of at every call site.
+      const _gd = G.graphData.bind(G);
+      G.graphData = (d) => {
+        if (d === undefined) return _gd();
+        const r = _gd(d);
+        this.markGraphDirty();
+        try { if (this._osdOn && this._osdOn()) this._osdFrame(); } catch (e) {}
+        return r;
+      };
       if (window.GARDEN_STATIC) {
         // Precomputed static layout (build-time): nodes arrive with baked x/y. Null out every
         // force so nothing ever moves them — reheats (drag, expand/collapse, egg) become no-ops
@@ -1755,7 +1769,7 @@ class Component extends DCLogic {
     let chosen = null; try { chosen = sessionStorage.getItem('kg-render'); } catch (e) {}
     if (chosen) return;   // explicit user choice always wins — no auto-switch, no notice
     const next = window.GARDEN_STATIC ? 'osd' : (this._glSupported() ? 'webgl' : 'bitmap');
-    this.setState({ renderMode: next }, () => { this.markGraphDirty(); this._kickGraph(); });
+    this.setState({ renderMode: next }, () => { this.markGraphDirty(); this._kickGraph(); if (next === 'osd') this._osdExpandAllOnce(); });
     try {
       if (sessionStorage.getItem('kg-bitmap-seen') !== '1') {
         sessionStorage.setItem('kg-bitmap-seen', '1');
@@ -1790,6 +1804,13 @@ class Component extends DCLogic {
   // canvas; force-graph keeps drawing live nodes, hot edges and particles on top, and the OSD
   // viewport is slaved to the force-graph camera every frame (all input stays on the canvas).
   _osdOn() { return this.state.renderMode === 'osd' && !!window.GARDEN_STATIC && !!window.OpenSeadragon && this._engineIdle !== false && !this._egg && !this._drag; }
+  // OSD default: the whole graph is visible (tiles are cheap at any size) — expand everything
+  // once when the deep-zoom renderer first engages; the user can still collapse afterwards.
+  _osdExpandAllOnce() {
+    if (this._osdDidExpand) return;
+    this._osdDidExpand = true;
+    if (this.collapsed && this.collapsed.size) this.expandAll();
+  }
   _osdEnsure() {
     if (this._osdLoading) return;
     this._osdLoading = true;
@@ -1890,6 +1911,38 @@ class Component extends DCLogic {
     this._osdEl.style.display = '';
     this._osdIdx = this._osdBuildIndex(this.graph.graphData());
     const idx = this._osdIdx;
+    // Nodes that live-drawn hot edges touch or cross: these must ALSO draw live (in force-graph's
+    // node pass, which runs after its link pass) so edges travel BEHIND node circles exactly like
+    // the original renderer — tiles sit under the canvas, so tile-baked circles alone would be
+    // painted over by the live edges.
+    const hotEnds = new Set();
+    {
+      const data = this.graph.graphData();
+      const CELL = idx.cell;
+      for (const l of data.links) {
+        if (!(this.isHot(l) || this.isPathHot(l))) continue;
+        const s = (l.source && l.source.id != null) ? l.source : this.nodeById[l.source];
+        const t = (l.target && l.target.id != null) ? l.target : this.nodeById[l.target];
+        if (!s || !t || s.x == null || t.x == null) continue;
+        hotEnds.add(s.id); hotEnds.add(t.id);
+        // walk the grid cells along the segment's bbox and collect nodes the edge passes through
+        const x0 = Math.floor(Math.min(s.x, t.x) / CELL) - 1, x1 = Math.floor(Math.max(s.x, t.x) / CELL) + 1;
+        const y0 = Math.floor(Math.min(s.y, t.y) / CELL) - 1, y1 = Math.floor(Math.max(s.y, t.y) / CELL) + 1;
+        if ((x1 - x0 + 1) * (y1 - y0 + 1) > 4000) continue;   // absurdly long edge: endpoints only
+        const dx = t.x - s.x, dy = t.y - s.y, len2 = dx * dx + dy * dy || 1e-6;
+        for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
+          const c = idx.map.get(cx + ':' + cy); if (!c) continue;
+          for (const n of c.n) {
+            if (hotEnds.has(n.id)) continue;
+            const u = Math.max(0, Math.min(1, ((n.x - s.x) * dx + (n.y - s.y) * dy) / len2));
+            const px = s.x + u * dx - n.x, py = s.y + u * dy - n.y;
+            const r = this.nodeRadius(n) + 3;
+            if (px * px + py * py <= r * r) hotEnds.add(n.id);
+          }
+        }
+      }
+    }
+    this._osdHotEnds = hotEnds;
     const PPU = 12;                                        // px per graph unit at the deepest level
     const imgW = Math.max(256, Math.ceil(idx.w * PPU));
     const imgH = Math.max(256, Math.ceil(idx.h * PPU));
@@ -1920,9 +1973,25 @@ class Component extends DCLogic {
     const osdInner = this._osdEl.querySelector('.openseadragon-container');
     if (osdInner) osdInner.style.pointerEvents = 'none';
   }
+  // Cheap signature of everything the OSD tiles depend on: the visible node/link set (hashed
+  // ids so expand+collapse with equal counts still differ), colors, sizes, search dimming,
+  // anchors/glow (excluded from tiles), and hot-edge sets (hidden in tiles while hot).
+  _osdSig() {
+    const data = this.graph ? this.graph.graphData() : { nodes: [], links: [] };
+    let h = 0;
+    for (const n of data.nodes) { const s = String(n.id); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; }
+    const anchors = this.paneIdsList ? this.paneIdsList().map((p) => this.paneNodeId(p)).join(',') : '';
+    return [data.nodes.length, data.links.length, h, this.state.nodeColorMode, this.state.edgeWidthMul, this.state.nodeSizeMul, this.state.nodeSizeByDegree, (this.state.query || ''), this.actingRoot, anchors, this.glowNodeId, (this.highlightLinkSet ? this.highlightLinkSet.size : 0), (this.pathLinkSet ? this.pathLinkSet.size : 0), this.state.showTree, this.state.showWiki, this.state.localGraph].join('|');
+  }
   // Per-frame: rebuild if stale, then slave the OSD viewport to the force-graph camera.
   _osdFrame() {
-    if (!this._osdViewer || this._bmDirty) { this._bmDirty = false; this._osdOpen(); }
+    if (!this._osdViewer || this._bmDirty) {
+      this._bmDirty = false;
+      // Only reopen (which flushes every cached tile) when the tiles' inputs actually changed —
+      // _kickGraph fires on lots of interactions that don't affect the static image.
+      const sig = this._osdSig();
+      if (!this._osdViewer || sig !== this._osdLastSig) { this._osdLastSig = sig; this._osdOpen(); }
+    }
     if (this._osdEl) this._osdEl.style.display = '';
     const el = this.graphEl, g = this._osdGeom, idx = this._osdIdx;
     if (!el || !g || !idx || !this._osdViewer) return;
@@ -2146,7 +2215,9 @@ class Component extends DCLogic {
   }
   draw2d(n, ctx, scale) {
     // Bitmap/WebGL mode: everything static is already drawn by drawCachePre — only live nodes draw.
-    if (this._cachedOn() && !this._liveNode(n)) return;
+    // OSD mode additionally live-draws nodes that hot edges touch/cross, so those edges (drawn
+    // live in the link pass, above the tile layer) end up BEHIND the node circles.
+    if (this._cachedOn() && !this._liveNode(n) && !(this._osdOn() && this._osdHotEnds && this._osdHotEnds.has(n.id))) return;
     // Huge vaults: cull nodes outside the viewport before any canvas work.
     if (this.isHuge()) {
       const vb = this.viewBounds();
@@ -5248,7 +5319,7 @@ class Component extends DCLogic {
       // Renderer choice: bitmap (cached image) → WebGL (GPU) → deep zoom (OSD, precomputed only) → original (live 2d).
       bitmapModeOn: (this.state.renderMode || 'live') !== 'live',
       bitmapToggleLabel: (this.state.renderMode === 'bitmap') ? '▣ Rendering: bitmap (fast)' : ((this.state.renderMode === 'webgl') ? '⬢ Rendering: WebGL (fastest)' : ((this.state.renderMode === 'osd') ? '◈ Rendering: deep zoom (OpenSeadragon)' : '□ Rendering: original (live)')),
-      menuToggleBitmap: () => { const order = window.GARDEN_STATIC ? ['bitmap', 'webgl', 'osd', 'live'] : ['bitmap', 'webgl', 'live']; let cur = order.indexOf(this.state.renderMode || 'live'); if (cur < 0) cur = order.length - 1; const next = order[(cur + 1) % order.length]; this.setState({ renderMode: next, bitmapNotice: false }, () => { this.markGraphDirty(); this._kickGraph(); try { sessionStorage.setItem('kg-render', next); } catch (e) {} }); },
+      menuToggleBitmap: () => { const order = window.GARDEN_STATIC ? ['bitmap', 'webgl', 'osd', 'live'] : ['bitmap', 'webgl', 'live']; let cur = order.indexOf(this.state.renderMode || 'live'); if (cur < 0) cur = order.length - 1; const next = order[(cur + 1) % order.length]; this.setState({ renderMode: next, bitmapNotice: false }, () => { this.markGraphDirty(); this._kickGraph(); if (next === 'osd') this._osdExpandAllOnce(); try { sessionStorage.setItem('kg-render', next); } catch (e) {} }); },
       bitmapNoticeShow: !!this.state.bitmapNotice,
       bitmapNoticeText: (this.state.renderMode === 'osd')
         ? 'Precomputed layout — switched to OpenSeadragon deep-zoom rendering. You can pick another renderer in the ⚙ controls menu.'
