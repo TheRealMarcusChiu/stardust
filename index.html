@@ -690,7 +690,7 @@
   &quot;edgeFlow&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot; }
 }">
 class Component extends DCLogic {
-  state = { mode: '2d', selectedId: null, ready: false, anim: false, tick: 0, fullPage: false, query: '', searchFocus: false, searchIdx: 0, menuNodeId: null, linkMenu: null, layout: { pane: 'p1' }, panes: { p1: { tabs: [], selectedKey: null } }, activePane: 'p1', tabNode: {}, tabMenu: null, barMenu: null, metaPop: null, splitSubOpen: false, renderMode: (function(){ try { var r = sessionStorage.getItem('kg-render'); if (['bitmap','webgl','live'].indexOf(r) >= 0) return r; } catch(e){} return 'live'; })(), bitmapNotice: false, legendHidden: (typeof window !== 'undefined' && window.innerWidth < 700), minimapForce: (typeof window !== 'undefined' && window.innerWidth < 700) ? false : undefined, splitHover: false, hoverTab: null, closeHover: null, tabsCollapsed: {}, lockTabW: {}, winW: (typeof window !== 'undefined' ? window.innerWidth : 1280), winH: (typeof window !== 'undefined' ? window.innerHeight : 800), searchExpanded: false, headerH: 64, sidebarW: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-w')); return (v && v >= 320) ? v : 452; } catch(e){ return 452; } })(), mdConfig: this.loadMdConfig(), mdConfigOpen: false, mdCfgExpanded: {}, showTree: true, showWiki: true, menuOpen: false, hoverId: null, dragging: false, dockPreview: null, undockLeft: null, undockTop: null, dock: (function(){ try { var d = sessionStorage.getItem('kg-dock'); return ['right','left','bottom','undock'].indexOf(d) >= 0 ? d : 'right'; } catch(e){ return 'right'; } })(), sidebarH: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-h')); return (v && v >= 200) ? v : Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.46); } catch(e){ return 360; } })(), bootMsg: 'fetching the garden \u2026', nodeSizeMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-node-size')); return (v>0)?v:1; } catch(e){ return 1; } })(), edgeWidthMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-edge-width')); return (v>0)?v:1; } catch(e){ return 1; } })(), nodeSizeByDegree: (function(){ try { return sessionStorage.getItem('kg-node-degree') !== '0'; } catch(e){ return true; } })(), nodeColorMode: (function(){ try { return sessionStorage.getItem('kg-node-color')||'category'; } catch(e){ return 'category'; } })(), treeEdgeColor: (function(){ try { return sessionStorage.getItem('kg-tree-color')||'#d8a942'; } catch(e){ return '#d8a942'; } })(), wikiEdgeColor: (function(){ try { return sessionStorage.getItem('kg-wiki-color')||'#8fd0db'; } catch(e){ return '#8fd0db'; } })() };
+  state = { mode: '2d', selectedId: null, ready: false, anim: false, tick: 0, fullPage: false, query: '', searchFocus: false, searchIdx: 0, menuNodeId: null, linkMenu: null, layout: { pane: 'p1' }, panes: { p1: { tabs: [], selectedKey: null } }, activePane: 'p1', tabNode: {}, tabMenu: null, barMenu: null, metaPop: null, splitSubOpen: false, renderMode: (function(){ try { var r = sessionStorage.getItem('kg-render'); if (['bitmap','webgl','osd','live'].indexOf(r) >= 0) return r; } catch(e){} return 'live'; })(), bitmapNotice: false, legendHidden: (typeof window !== 'undefined' && window.innerWidth < 700), minimapForce: (typeof window !== 'undefined' && window.innerWidth < 700) ? false : undefined, splitHover: false, hoverTab: null, closeHover: null, tabsCollapsed: {}, lockTabW: {}, winW: (typeof window !== 'undefined' ? window.innerWidth : 1280), winH: (typeof window !== 'undefined' ? window.innerHeight : 800), searchExpanded: false, headerH: 64, sidebarW: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-w')); return (v && v >= 320) ? v : 452; } catch(e){ return 452; } })(), mdConfig: this.loadMdConfig(), mdConfigOpen: false, mdCfgExpanded: {}, showTree: true, showWiki: true, menuOpen: false, hoverId: null, dragging: false, dockPreview: null, undockLeft: null, undockTop: null, dock: (function(){ try { var d = sessionStorage.getItem('kg-dock'); return ['right','left','bottom','undock'].indexOf(d) >= 0 ? d : 'right'; } catch(e){ return 'right'; } })(), sidebarH: (function(){ try { var v = parseFloat(sessionStorage.getItem('kg-sidebar-h')); return (v && v >= 200) ? v : Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.46); } catch(e){ return 360; } })(), bootMsg: 'fetching the garden \u2026', nodeSizeMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-node-size')); return (v>0)?v:1; } catch(e){ return 1; } })(), edgeWidthMul: (function(){ try { var v=parseFloat(sessionStorage.getItem('kg-edge-width')); return (v>0)?v:1; } catch(e){ return 1; } })(), nodeSizeByDegree: (function(){ try { return sessionStorage.getItem('kg-node-degree') !== '0'; } catch(e){ return true; } })(), nodeColorMode: (function(){ try { return sessionStorage.getItem('kg-node-color')||'category'; } catch(e){ return 'category'; } })(), treeEdgeColor: (function(){ try { return sessionStorage.getItem('kg-tree-color')||'#d8a942'; } catch(e){ return '#d8a942'; } })(), wikiEdgeColor: (function(){ try { return sessionStorage.getItem('kg-wiki-color')||'#8fd0db'; } catch(e){ return '#8fd0db'; } })() };
 
   MD_CONFIG = [
     { key: 'math', label: 'LaTeX math ($…$)', ex: 'Mass–energy: $E = mc^2$' },
@@ -1665,7 +1665,7 @@ class Component extends DCLogic {
         .enableNodeDrag(false)
         .onNodeHover(() => {})
         .onBackgroundClick((ev) => this.onBgClick(ev))
-        .linkVisibility((l) => (this._bitmapOn() ? false : (this._glOn() ? (this.isHot(l) || this.isPathHot(l)) : true)))
+        .linkVisibility((l) => (this._bitmapOn() ? false : ((this._glOn() || this._osdOn()) ? (this.isHot(l) || this.isPathHot(l)) : true)))
         .onRenderFramePre((ctx) => this.drawCachePre(ctx))
         .onRenderFramePost((ctx) => this.drawCachePost(ctx))
         .cooldownTicks(window.GARDEN_STATIC ? 0 : 160);
@@ -1727,7 +1727,7 @@ class Component extends DCLogic {
   // WebGL mode: nodes+links live in GPU buffers (rebuilt only when the structure changes) and
   // are re-rendered every frame at the current camera — crisp at any zoom, no cache staleness.
   _glOn() { return (this.state.renderMode || 'bitmap') === 'webgl' && this._engineIdle !== false && !this._egg && !this._drag; }
-  _cachedOn() { return this._bitmapOn() || this._glOn(); }
+  _cachedOn() { return this._bitmapOn() || this._glOn() || this._osdOn(); }
   markGraphDirty = () => { this._bmDirty = true; };
   _liveNode(n) {
     return n.id === this.hoverId || n.id === (this.actingRoot != null ? this.actingRoot : this.rootId)
@@ -1746,15 +1746,16 @@ class Component extends DCLogic {
     try { const c = document.createElement('canvas'); this._glSup = !!(c.getContext('webgl') || c.getContext('experimental-webgl')); } catch (e) { this._glSup = false; }
     return this._glSup;
   }
-  // Auto-upgrade for huge graphs: the default renderer is 'live'; when the node count crosses
-  // the HUGE threshold and the user never explicitly picked a renderer, switch to WebGL when
-  // supported (bitmap otherwise) and show the once-per-session notice.
+  // Auto-upgrade: the default renderer is 'live'. A precomputed layout (window.GARDEN_STATIC)
+  // switches to OpenSeadragon deep-zoom tiles; otherwise a huge graph switches to WebGL when
+  // supported (bitmap fallback). An explicit menu choice always wins. Once per session notice.
   _autoRenderCheck() {
-    if (!this.isHuge() || this._autoRenderDone) return;
+    if ((!this.isHuge() && !window.GARDEN_STATIC) || this._autoRenderDone) return;
     this._autoRenderDone = true;
     let chosen = null; try { chosen = sessionStorage.getItem('kg-render'); } catch (e) {}
     if (chosen) return;   // explicit user choice always wins — no auto-switch, no notice
-    this.setState({ renderMode: this._glSupported() ? 'webgl' : 'bitmap' }, () => { this.markGraphDirty(); this._kickGraph(); });
+    const next = window.GARDEN_STATIC ? 'osd' : (this._glSupported() ? 'webgl' : 'bitmap');
+    this.setState({ renderMode: next }, () => { this.markGraphDirty(); this._kickGraph(); });
     try {
       if (sessionStorage.getItem('kg-bitmap-seen') !== '1') {
         sessionStorage.setItem('kg-bitmap-seen', '1');
@@ -1765,6 +1766,9 @@ class Component extends DCLogic {
   }
   drawCachePre(ctx) {
     this._autoRenderCheck();
+    if (this.state.renderMode === 'osd' && window.GARDEN_STATIC && !window.OpenSeadragon) this._osdEnsure();
+    if (this._osdOn()) { this._osdFrame(); return; }
+    if (this._osdEl && this._osdEl.style.display !== 'none') this._osdEl.style.display = 'none';
     if (this._glOn()) { this._glFrame(ctx, 'lines'); return; }
     if (!this._bitmapOn()) return;
     const el = this.graphEl;
@@ -1778,6 +1782,145 @@ class Component extends DCLogic {
     if (stale && now - (this._bmBuiltT || 0) > 220) this.rebuildBitmap(zoom);
     const cc = this._bmCache;
     if (cc) ctx.drawImage(cc.canvas, cc.gx, cc.gy, cc.gw, cc.gh);
+  }
+  // ---- OpenSeadragon deep-zoom renderer (precomputed layouts only) ----------------------
+  // With layout.precompute the positions never move, so the graph becomes a virtual deep-zoom
+  // image: OSD requests 256px tiles, each rendered on demand from the node/edge data at that
+  // level's scale (then cached by the viewer). The OSD layer sits BEHIND the interaction
+  // canvas; force-graph keeps drawing live nodes, hot edges and particles on top, and the OSD
+  // viewport is slaved to the force-graph camera every frame (all input stays on the canvas).
+  _osdOn() { return this.state.renderMode === 'osd' && !!window.GARDEN_STATIC && !!window.OpenSeadragon && this._engineIdle !== false && !this._egg && !this._drag; }
+  _osdEnsure() {
+    if (this._osdLoading) return;
+    this._osdLoading = true;
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/openseadragon@4.1.1/build/openseadragon/openseadragon.min.js';
+    s.onload = () => this._kickGraph();
+    s.onerror = () => this.setState({ renderMode: this._glSupported() ? 'webgl' : 'bitmap' }, () => this._kickGraph());
+    document.head.appendChild(s);
+  }
+  // Spatial index (grid buckets) so each tile only touches nearby nodes/edges.
+  _osdBuildIndex(data) {
+    const CELL = 64;
+    const idx = { cell: CELL, map: new Map(), long: [], nodes: [] };
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    for (const n of data.nodes) {
+      if (n.x == null) continue;
+      idx.nodes.push(n);
+      if (n.x < minx) minx = n.x; if (n.x > maxx) maxx = n.x;
+      if (n.y < miny) miny = n.y; if (n.y > maxy) maxy = n.y;
+    }
+    if (!idx.nodes.length) { minx = miny = -100; maxx = maxy = 100; }
+    const pad = 120;
+    idx.minx = minx - pad; idx.miny = miny - pad;
+    idx.w = (maxx - minx) + pad * 2; idx.h = (maxy - miny) + pad * 2;
+    const put = (cx, cy, kind, v) => { const k = cx + ':' + cy; let c = idx.map.get(k); if (!c) { c = { n: [], e: [] }; idx.map.set(k, c); } c[kind].push(v); };
+    for (const n of idx.nodes) put(Math.floor(n.x / CELL), Math.floor(n.y / CELL), 'n', n);
+    for (const l of data.links) {
+      const s = (l.source && l.source.id != null) ? l.source : this.nodeById[l.source];
+      const t = (l.target && l.target.id != null) ? l.target : this.nodeById[l.target];
+      if (!s || !t || s.x == null || t.x == null) continue;
+      const e = { s, t, l };
+      const x0 = Math.floor(Math.min(s.x, t.x) / CELL), x1 = Math.floor(Math.max(s.x, t.x) / CELL);
+      const y0 = Math.floor(Math.min(s.y, t.y) / CELL), y1 = Math.floor(Math.max(s.y, t.y) / CELL);
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > 240) { idx.long.push(e); continue; }   // very long edges: bbox-test per tile instead
+      for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) put(cx, cy, 'e', e);
+    }
+    return idx;
+  }
+  // Render one deep-zoom tile from graph data; returned as a data URL for OSD's image loader.
+  _osdRenderTile(level, tx, ty) {
+    const g = this._osdGeom, idx = this._osdIdx;
+    if (!g || !idx) return 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+    const scale = Math.pow(2, level - g.maxLevel);
+    const ppu = g.PPU * scale;                             // px per graph unit at this level
+    const ts = 256;
+    const levelW = Math.ceil(g.imgW * scale), levelH = Math.ceil(g.imgH * scale);
+    const w = Math.max(1, Math.min(ts, levelW - tx * ts));
+    const h = Math.max(1, Math.min(ts, levelH - ty * ts));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d');
+    const gx0 = idx.minx + (tx * ts) / ppu, gy0 = idx.miny + (ty * ts) / ppu;
+    const gx1 = gx0 + w / ppu, gy1 = gy0 + h / ppu;
+    const m = 40;                                          // graph-unit margin so radii/strokes don't clip at seams
+    ctx.setTransform(ppu, 0, 0, ppu, -gx0 * ppu, -gy0 * ppu);
+    ctx.lineWidth = (0.45 * (this.state.edgeWidthMul || 1)) / ppu;   // constant px on screen; follows the slider
+    const CELL = idx.cell;
+    const cx0 = Math.floor((gx0 - m) / CELL), cx1 = Math.floor((gx1 + m) / CELL);
+    const cy0 = Math.floor((gy0 - m) / CELL), cy1 = Math.floor((gy1 + m) / CELL);
+    const eSeen = new Set();
+    const drawEdge = (e) => {
+      if (this.isHot(e.l) || this.isPathHot(e.l)) return;   // hot edges + particles stay live on the canvas
+      if (Math.max(e.s.x, e.t.x) < gx0 - m || Math.min(e.s.x, e.t.x) > gx1 + m || Math.max(e.s.y, e.t.y) < gy0 - m || Math.min(e.s.y, e.t.y) > gy1 + m) return;
+      ctx.strokeStyle = this.linkColorFn(e.l);
+      ctx.beginPath(); ctx.moveTo(e.s.x, e.s.y); ctx.lineTo(e.t.x, e.t.y); ctx.stroke();
+    };
+    for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+      const c = idx.map.get(cx + ':' + cy); if (!c) continue;
+      for (const e of c.e) { if (!eSeen.has(e)) { eSeen.add(e); drawEdge(e); } }
+    }
+    for (const e of idx.long) { if (!eSeen.has(e)) { eSeen.add(e); drawEdge(e); } }
+    for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+      const c = idx.map.get(cx + ':' + cy); if (!c) continue;
+      for (const n of c.n) {
+        if (this._cacheSkip(n)) continue;                  // root/anchor/glow draw live on top
+        const r = Math.max(this.nodeRadius(n), 0.5 / ppu); // keep dots visible when zoomed far out
+        ctx.globalAlpha = this._dimAlpha(n) < 1 ? 0.14 : 1;
+        ctx.fillStyle = n.col || this.color(n);
+        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    return cv.toDataURL('image/png');
+  }
+  // (Re)build the index + tile source and hand it to the viewer (created lazily, behind the canvas).
+  _osdOpen() {
+    const OSD = window.OpenSeadragon;
+    if (!OSD || !this.graph || !this.graphEl) return;
+    if (!this._osdEl) {
+      const div = document.createElement('div');
+      div.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;';
+      this.graphEl.parentElement.insertBefore(div, this.graphEl);
+      this._osdEl = div;
+    }
+    this._osdEl.style.display = '';
+    this._osdIdx = this._osdBuildIndex(this.graph.graphData());
+    const idx = this._osdIdx;
+    const PPU = 12;                                        // px per graph unit at the deepest level
+    const imgW = Math.max(256, Math.ceil(idx.w * PPU));
+    const imgH = Math.max(256, Math.ceil(idx.h * PPU));
+    const maxLevel = Math.ceil(Math.log2(Math.max(imgW, imgH)));
+    this._osdGeom = { imgW, imgH, maxLevel, PPU };
+    const src = {
+      width: imgW, height: imgH, tileSize: 256, tileOverlap: 0,
+      minLevel: Math.max(0, maxLevel - 12), maxLevel,
+      getTileUrl: (l, x, y) => this._osdRenderTile(l, x, y),
+    };
+    if (!this._osdViewer) {
+      this._osdViewer = OSD({
+        element: this._osdEl, tileSources: src,
+        showNavigationControl: false, showNavigator: false, mouseNavEnabled: false,
+        immediateRender: true, blendTime: 0, animationTime: 0, springStiffness: 100,
+        visibilityRatio: 0, constrainDuringPan: false, minZoomImageRatio: 0, maxZoomPixelRatio: 1e9,
+        autoResize: true, imageLoaderLimit: 8,
+      });
+    } else {
+      this._osdViewer.open(src);
+    }
+  }
+  // Per-frame: rebuild if stale, then slave the OSD viewport to the force-graph camera.
+  _osdFrame() {
+    if (!this._osdViewer || this._bmDirty) { this._bmDirty = false; this._osdOpen(); }
+    if (this._osdEl) this._osdEl.style.display = '';
+    const el = this.graphEl, g = this._osdGeom, idx = this._osdIdx;
+    if (!el || !g || !idx || !this._osdViewer) return;
+    try {
+      const tl = this.graph.screen2GraphCoords(0, 0);
+      const br = this.graph.screen2GraphCoords(el.clientWidth, el.clientHeight);
+      const vx = (tl.x - idx.minx) * g.PPU / g.imgW, vy = (tl.y - idx.miny) * g.PPU / g.imgW;
+      const vw = (br.x - tl.x) * g.PPU / g.imgW, vh = (br.y - tl.y) * g.PPU / g.imgW;
+      this._osdViewer.viewport.fitBounds(new window.OpenSeadragon.Rect(vx, vy, vw, vh), true);
+    } catch (e) {}
   }
   // ---- WebGL renderer -------------------------------------------------------------------
   _colVec(c, a) {
@@ -5090,14 +5233,16 @@ class Component extends DCLogic {
       closeStats: () => this.setState({ statsOpen: false }),
       stats: this.state.statsOpen ? this.computeStats() : null,
       menuExportPng: () => { this.setState({ menuOpen: false }); this.exportGraphPNG(); },
-      // Renderer choice: bitmap (cached image, fast) → WebGL (GPU, fastest) → original (live 2d).
-      bitmapModeOn: (this.state.renderMode || 'bitmap') !== 'live',
-      bitmapToggleLabel: (this.state.renderMode || 'bitmap') === 'bitmap' ? '▣ Rendering: bitmap (fast)' : ((this.state.renderMode === 'webgl') ? '⬢ Rendering: WebGL (fastest)' : '□ Rendering: original (live)'),
-      menuToggleBitmap: () => { const order = ['bitmap', 'webgl', 'live']; const cur = order.indexOf(this.state.renderMode || 'bitmap'); const next = order[(cur + 1) % order.length]; this.setState({ renderMode: next, bitmapNotice: false }, () => { this.markGraphDirty(); this._kickGraph(); try { sessionStorage.setItem('kg-render', next); } catch (e) {} }); },
+      // Renderer choice: bitmap (cached image) → WebGL (GPU) → deep zoom (OSD, precomputed only) → original (live 2d).
+      bitmapModeOn: (this.state.renderMode || 'live') !== 'live',
+      bitmapToggleLabel: (this.state.renderMode === 'bitmap') ? '▣ Rendering: bitmap (fast)' : ((this.state.renderMode === 'webgl') ? '⬢ Rendering: WebGL (fastest)' : ((this.state.renderMode === 'osd') ? '◈ Rendering: deep zoom (OpenSeadragon)' : '□ Rendering: original (live)')),
+      menuToggleBitmap: () => { const order = window.GARDEN_STATIC ? ['bitmap', 'webgl', 'osd', 'live'] : ['bitmap', 'webgl', 'live']; let cur = order.indexOf(this.state.renderMode || 'live'); if (cur < 0) cur = order.length - 1; const next = order[(cur + 1) % order.length]; this.setState({ renderMode: next, bitmapNotice: false }, () => { this.markGraphDirty(); this._kickGraph(); try { sessionStorage.setItem('kg-render', next); } catch (e) {} }); },
       bitmapNoticeShow: !!this.state.bitmapNotice,
-      bitmapNoticeText: (this.state.renderMode === 'webgl')
-        ? 'Large graph — switched to WebGL rendering (fastest). You can pick bitmap or the original live rendering in the ⚙ controls menu.'
-        : 'Large graph — switched to fast bitmap rendering. You can change back to the original live rendering in the ⚙ controls menu.',
+      bitmapNoticeText: (this.state.renderMode === 'osd')
+        ? 'Precomputed layout — switched to OpenSeadragon deep-zoom rendering. You can pick another renderer in the ⚙ controls menu.'
+        : ((this.state.renderMode === 'webgl')
+          ? 'Large graph — switched to WebGL rendering (fastest). You can pick bitmap or the original live rendering in the ⚙ controls menu.'
+          : 'Large graph — switched to fast bitmap rendering. You can change back to the original live rendering in the ⚙ controls menu.'),
       bitmapNoticeStyle: { position: 'fixed', left: '50%', bottom: '26px', transform: 'translateX(-50%)', zIndex: 90, display: 'flex', alignItems: 'center', gap: '12px', maxWidth: 'min(92vw, 560px)', background: '#16120c', border: '1px solid #4a3823', borderRadius: '9px', padding: '10px 14px', boxShadow: '0 18px 40px -14px rgba(0,0,0,0.85)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.04em', color: '#c9bca6', lineHeight: 1.55 },
       bitmapNoticeClose: () => this.setState({ bitmapNotice: false }),
       closeShortcuts: () => this.setState({ shortcutsOpen: false }),
