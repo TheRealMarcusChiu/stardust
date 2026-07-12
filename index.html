@@ -1878,9 +1878,13 @@ class Component extends DCLogic {
     const OSD = window.OpenSeadragon;
     if (!OSD || !this.graph || !this.graphEl) return;
     if (!this._osdEl) {
+      // Mount INSIDE the graph container (it's the positioned, correctly-sized box) at z-index
+      // -1: graphEl is its own stacking context, so the layer paints behind the interaction
+      // canvas but above the page background. Parking it in the parent gave it a 0-height
+      // containing block — OSD saw a 2px viewport and never requested tiles.
       const div = document.createElement('div');
-      div.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;';
-      this.graphEl.parentElement.insertBefore(div, this.graphEl);
+      div.style.cssText = 'position:absolute;inset:0;z-index:-1;pointer-events:none;';
+      this.graphEl.insertBefore(div, this.graphEl.firstChild);
       this._osdEl = div;
     }
     this._osdEl.style.display = '';
@@ -1907,6 +1911,14 @@ class Component extends DCLogic {
     } else {
       this._osdViewer.open(src);
     }
+    // OSD rewrites the host's position (→ relative) and enables pointer events on its inner
+    // container at init — force the layer back to an absolutely-positioned, click-through box.
+    this._osdEl.style.position = 'absolute';
+    this._osdEl.style.inset = '0';
+    this._osdEl.style.width = '100%';
+    this._osdEl.style.height = '100%';
+    const osdInner = this._osdEl.querySelector('.openseadragon-container');
+    if (osdInner) osdInner.style.pointerEvents = 'none';
   }
   // Per-frame: rebuild if stale, then slave the OSD viewport to the force-graph camera.
   _osdFrame() {
@@ -4176,7 +4188,7 @@ class Component extends DCLogic {
     return { total: nodes.length, wikiLinks, treeLinks, orphans: orphansAll.length, hubs, backs, orphanList, tags };
   }
   toggleTree = () => this.setState((s) => ({ showTree: !s.showTree }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });  toggleWiki = () => this.setState((s) => ({ showWiki: !s.showWiki }), () => { if (this.graph) this.graph.graphData(this.getVisible()); });
-  _kickGraph = () => { this.markGraphDirty(); if (!this.graph) return; try { this.graph.linkVisibility(this.graph.linkVisibility()); this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); if (this.graph.linkDirectionalParticleColor) this.graph.linkDirectionalParticleColor(this.graph.linkDirectionalParticleColor()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} };
+  _kickGraph = () => { this.markGraphDirty(); if (!this.graph) return; try { this.graph.linkVisibility(this.graph.linkVisibility()); this.graph.linkColor(this.graph.linkColor()); this.graph.linkWidth(this.graph.linkWidth()); if (this.graph.linkDirectionalParticleColor) this.graph.linkDirectionalParticleColor(this.graph.linkDirectionalParticleColor()); this.graph.nodeRelSize(this.graph.nodeRelSize()); } catch (e) {} try { if (this._osdOn && this._osdOn()) this._osdFrame(); else if (this._osdEl) this._osdEl.style.display = 'none'; } catch (e) {} };
   setNodeSize = (e) => { const v = parseFloat(e.target.value); this.setState({ nodeSizeMul: v }); try { sessionStorage.setItem('kg-node-size', v); } catch (_) {} this._kickGraph(); };
   toggleNodeDegree = () => { const next = !(this.state.nodeSizeByDegree !== false); this.setState({ nodeSizeByDegree: next }); try { sessionStorage.setItem('kg-node-degree', next ? '1' : '0'); } catch (_) {} this._kickGraph(); };
   setEdgeWidth = (e) => { const v = parseFloat(e.target.value); this.setState({ edgeWidthMul: v }); try { sessionStorage.setItem('kg-edge-width', v); } catch (_) {} this._kickGraph(); };
